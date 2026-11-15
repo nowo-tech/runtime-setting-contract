@@ -1,0 +1,15 @@
+includes:
+    - vendor/nowo-tech/phpstan-frankenphp/ruleset-classic.neon
+    - vendor/nowo-tech/phpstan-frankenphp/ruleset-worker-strict.neon
+    - vendor/nowo-tech/phpstan-frankenphp/ruleset-hardening.neon
+
+parameters:
+    level: max
+    paths:
+        - src
+        - tests
+    excludePaths:
+        - tests/Fixtures/var/*
+    ignoreErrors: []
+    # Tests read the same store before and after a write: do not assume two calls return the same value.
+    rememberPossiblyImpureFunctionValues: false
