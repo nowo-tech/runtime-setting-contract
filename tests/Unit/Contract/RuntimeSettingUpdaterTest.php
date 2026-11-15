@@ -18,6 +18,7 @@ use Nowo\RuntimeSettingContract\Contract\RuntimeSettingType;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingUpdater;
 use Nowo\RuntimeSettingContract\Contract\RuntimeValueFingerprinter;
 use Nowo\RuntimeSettingContract\Contract\SettingChangedEvent;
+use Nowo\RuntimeSettingContract\Contract\Validator\Unbounded;
 use Nowo\RuntimeSettingContract\InMemory\InMemoryRuntimeSettingStore;
 use Nowo\RuntimeSettingContract\Tests\Fixtures\DemoLimitValidator;
 use Nowo\RuntimeSettingContract\Tests\Support\MutableClock;
@@ -51,7 +52,7 @@ final class RuntimeSettingUpdaterTest extends TestCase
         $this->registry   = new RuntimeSettingRegistry([
             new RuntimeSettingDefinition('chat.days', RuntimeSettingType::Int, RuntimeSettingSource::DbThenEnv, validator: new DemoLimitValidator(), configured: 30),
             new RuntimeSettingDefinition('chat.mode', RuntimeSettingType::String),
-            new RuntimeSettingDefinition('API_TOKEN', RuntimeSettingType::String, RuntimeSettingSource::Db, secret: true, maxLength: 64),
+            new RuntimeSettingDefinition('API_TOKEN', RuntimeSettingType::String, RuntimeSettingSource::Db, secret: true, validator: new Unbounded(), maxLength: 64),
         ]);
     }
 

@@ -37,8 +37,10 @@ memo cleared at every boundary, bounded state. See [FrankenPHP worker audit](doc
   bounded before parsing.
 - **Live change without restart**: a per-namespace version token, read at most once per request and reused for at
   most `version_ttl`, invalidates an optional shared PSR-6 cache; no shared Redis needed.
-- **Secrets**: never in the shared cache, never logged or printed, only through `--stdin`, keyed fingerprints in
-  audit entries.
+- **Secrets**: never in the shared cache, never logged or printed, only through `--stdin`; no fingerprint of a
+  secret is ever produced (audit entries record only that it changed).
+- **Bounds are a decision**: a setting that can be written at runtime needs a validator (`IntRange`,
+  `SingleLineString`, your own) or the explicit `Unbounded` opt-out, else the container build fails.
 - **Rotation**: current + previous with an expiry; `candidates()` accepts both inside the window.
 - **Worker-safe** and **DDD-friendly**: memo cleared at every boundary; `src/Contract` runs without Symfony.
 - **Ids** compatible with RuntimeEnvBundle: `namespace.key` or an environment variable name.
@@ -64,12 +66,13 @@ Symfony hosts register `Nowo\RuntimeSettingContract\Bridge\Symfony\NowoRuntimeSe
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingDefinition;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingSource;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingType;
+use Nowo\RuntimeSettingContract\Contract\Validator\IntRange;
 
 $retention = new RuntimeSettingDefinition(
     'CHAT_RETENTION_DAYS',                  // or 'chat.retention_days'
     RuntimeSettingType::Int,
     RuntimeSettingSource::DbThenEnv,
-    validator: new ChatRetentionValidator(), // the bundle's bounds and clamping
+    validator: new IntRange(1, 36500),       // required when the source can be written (or Unbounded explicitly)
     configured: $_ENV['CHAT_RETENTION_DAYS'] ?? null,
     default: 90,
 );
@@ -106,6 +109,7 @@ bin/console nowo:runtime-setting:get <id>
 bin/console nowo:runtime-setting:set <id> [<value>] [--stdin] [--dry-run]
 bin/console nowo:runtime-setting:unset <id> [--dry-run]
 bin/console nowo:runtime-setting:rotate <id> --stdin [--keep-previous=PT1H] [--dry-run]
+bin/console nowo:runtime-setting:purge          # delete expired previous values at rest (schedule it)
 ```
 
 ## Documentation

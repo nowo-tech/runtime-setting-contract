@@ -7,6 +7,7 @@ namespace Nowo\RuntimeSettingContract\Bridge\Symfony;
 use Nowo\RuntimeSettingContract\Bridge\Psr6\Psr6RuntimeValueCache;
 use Nowo\RuntimeSettingContract\Bridge\Symfony\Command\GetRuntimeSettingCommand;
 use Nowo\RuntimeSettingContract\Bridge\Symfony\Command\ListRuntimeSettingsCommand;
+use Nowo\RuntimeSettingContract\Bridge\Symfony\Command\PurgeRuntimeSettingsCommand;
 use Nowo\RuntimeSettingContract\Bridge\Symfony\Command\RotateRuntimeSettingCommand;
 use Nowo\RuntimeSettingContract\Bridge\Symfony\Command\SetRuntimeSettingCommand;
 use Nowo\RuntimeSettingContract\Bridge\Symfony\Command\UnsetRuntimeSettingCommand;
@@ -32,7 +33,7 @@ use function Symfony\Component\DependencyInjection\Loader\Configurator\tagged_it
 
 /**
  * Symfony glue for nowo-tech/runtime-setting-contract: resolver, updater, boundary listener, optional PSR-6 cache
- * and the `nowo:runtime-setting:*` commands (registered only with `command.enabled: true`).
+ * and the `nowo:runtime-setting:*` commands (get, set, unset, list, rotate, purge) (registered only with `command.enabled: true`).
  *
  * ```yaml
  * nowo_runtime_setting:
@@ -82,7 +83,7 @@ final class NowoRuntimeSettingBundle extends AbstractBundle
                     ->max(RuntimeSettingResolver::MAX_VERSION_TTL)
                 ->end()
                 ->scalarNode('fingerprint_key')
-                    ->info('HMAC key for value fingerprints in audit entries and command output (>= 16 bytes). Null: kernel.secret.')
+                    ->info('Secret (>= 16 bytes) the HMAC key for fingerprints of non-secret values is derived from (domain-separated). Null: kernel.secret.')
                     ->defaultNull()
                 ->end()
                 ->arrayNode('command')
@@ -168,7 +169,7 @@ final class NowoRuntimeSettingBundle extends AbstractBundle
         }
 
         $services->set('nowo_runtime_setting.command.get', GetRuntimeSettingCommand::class)
-            ->args([service('nowo_runtime_setting.registry'), service('nowo_runtime_setting.resolver'), service('nowo_runtime_setting.fingerprinter')])
+            ->args([service('nowo_runtime_setting.registry'), service('nowo_runtime_setting.resolver')])
             ->tag('console.command');
         $services->set('nowo_runtime_setting.command.list', ListRuntimeSettingsCommand::class)
             ->args([service('nowo_runtime_setting.registry'), service('nowo_runtime_setting.resolver')])
@@ -177,6 +178,7 @@ final class NowoRuntimeSettingBundle extends AbstractBundle
             'set'    => SetRuntimeSettingCommand::class,
             'unset'  => UnsetRuntimeSettingCommand::class,
             'rotate' => RotateRuntimeSettingCommand::class,
+            'purge'  => PurgeRuntimeSettingsCommand::class,
         ] as $name => $class) {
             $services->set('nowo_runtime_setting.command.' . $name, $class)
                 ->args([service('nowo_runtime_setting.updater')])

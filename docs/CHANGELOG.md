@@ -16,10 +16,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Contract** (`Nowo\RuntimeSettingContract\Contract`, PHP and PSR interfaces only): `RuntimeValueSourceInterface`,
   `RuntimeSettingWriterInterface` (set, unset, rotate with keep-previous), `RuntimeSettingDefinition` (id, type,
   source `env|db|db_then_env`, `on_error` `fallback|fail_closed`, secret flag, validator, configured value, default,
-  required, max length), `RuntimeSettingId` (`namespace.key` or an environment variable name, matched byte for byte),
+  required, max length), `RuntimeSettingId` (`namespace.key` or a bare environment variable name, `env.NAME` refused, matched byte for byte),
   `RuntimeSettingType`, `RuntimeSettingRegistry`, `StoredRuntimeValue`, `RuntimeSettingChange`,
   `SettingChangedEvent` (ids only), `RuntimeValueFingerprinter` (keyed HMAC), `RuntimeValueCacheInterface` and the
   exceptions under `Contract\Exception`.
+- **Bounds are mandatory for writable settings**: a definition with `source: db` / `db_then_env` and no validator is
+  refused (at construction and in `registerDefinition()`). Validators `Contract\Validator\IntRange` (refuse or clamp),
+  `SingleLineString` (no control characters, bounded) and the explicit opt-out `Unbounded`.
+- **No fingerprint of a secret**: dry runs, updater results, `get` and writer audit entries carry none
+  (`RuntimeSettingWriteContext::fingerprint()` returns null for secrets); fingerprints of other values use a key derived
+  from the host secret with the label `nowo.runtime-setting.fingerprint.v1`.
+- **Purge**: `RuntimeSettingWriterInterface::purgeExpired()`, `RuntimeSettingUpdater::purgeExpired()` and the
+  `nowo:runtime-setting:purge` command delete expired previous values at rest; every write purges its namespace.
 - **`RuntimeSettingResolver`**: per-request memo cleared at every boundary (`clearRuntimeCache()`, `reset()`),
   namespace version token read at most once per request and reused for at most `version_ttl` seconds, optional shared
   cache keyed by version (never for secrets), validation on every value, `candidates()` for rotation (current plus
@@ -35,7 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `RuntimeSettingBoundaryListener` (main `kernel.request`, `kernel.terminate`, `console.command`,
   `console.terminate`, Messenger worker events, `kernel.reset`),
   `RuntimeSettingsConfiguration` (config tree helper for `runtime: { <setting>: { source, key, on_error } }` and
-  definition registration), and the commands `nowo:runtime-setting:get|set|unset|list|rotate`, registered only with
+  definition registration), and the commands `nowo:runtime-setting:get|set|unset|list|rotate|purge`, registered only with
   `command.enabled: true` (default false). Secrets only through `--stdin`, never echoed; audit actor `cli:<os user>`;
   `--dry-run`.
 

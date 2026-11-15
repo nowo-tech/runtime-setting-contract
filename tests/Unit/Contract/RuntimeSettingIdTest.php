@@ -66,6 +66,7 @@ final class RuntimeSettingIdTest extends TestCase
         yield 'empty namespace' => ['.days'];
         yield 'double dot' => ['chat..days'];
         yield 'reserved env namespace' => ['env.days'];
+        yield 'env name with env prefix' => ['env.CHAT_DAYS'];
         yield 'env name lowercase' => ['Chat_days'];
         yield 'env name digit first' => ['1CHAT'];
         yield 'namespace too long' => [str_repeat('a', 65) . '.k'];

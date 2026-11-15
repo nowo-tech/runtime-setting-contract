@@ -54,11 +54,21 @@ in-memory reference store) and opens no network connection.
   only. The bundle's validator runs on every value, whatever its origin, and its result is re-checked against the
   type and the bound. A validator that throws refuses the value (fail closed).
 - **`on_error: fail_closed`** is the default.
-- **Secrets** are only accepted through `--stdin` in the commands, never printed (masked, with a keyed fingerprint),
-  never written to the shared pool, never logged; an empty secret is refused.
-- **Fingerprints** are HMAC-SHA-256 (truncated to 64 bits) with a host key (`kernel.secret` by default, at least 16
-  bytes), over the id and the value, so equal values of two settings differ and a low-entropy secret cannot be
-  confirmed without the key.
+- **Secrets** are only accepted through `--stdin` in the commands, never printed (masked), never written to the
+  shared pool, never logged; an empty secret is refused. **No fingerprint of a secret is ever produced**: not by
+  `get` or `list`, not by a dry run, not in the updater's result, not in audit entries (which record only that the
+  secret changed). A fingerprint, even keyed, lets anyone who may write the secret confirm guesses of its current
+  value through a dry run (audit QS-M-1).
+- **Fingerprints** of non-secret values are HMAC-SHA-256 (truncated to 64 bits) over the id and the value, with a key
+  derived from the host secret (`kernel.secret` or `fingerprint_key`, at least 16 bytes) and the label
+  `nowo.runtime-setting.fingerprint.v1`, so they never share a key with the host's other uses of that secret.
+- **Bounds are mandatory** for settings that can be written: a definition with `source: db` / `db_then_env` and no
+  validator fails at container build (`IntRange`, `SingleLineString` or an explicit `Unbounded`).
+- **Validator errors** are never chained: a foreign exception becomes a fixed reason with its class name only, and a
+  secret's validator reason is replaced by a generic one, so no value reaches logs through `getPrevious()`.
+- **Rotation**: a previous value is never accepted after its expiry; it is deleted at rest by the next write in its
+  namespace and by `nowo:runtime-setting:purge`.
+- **STDIN** input over the limit is refused, never truncated.
 - **Cache entries** are trusted only for the exact version token the source returned, and are validated strictly
   (shape, types, lengths) before use; anything else is a miss.
 - **Writes** go through `RuntimeSettingUpdater` only: registered ids, never `source: env`, validated first,
@@ -120,8 +130,23 @@ Confirm before each tag:
 | No custom cryptography (HMAC from ext-hash only) | Required |
 | No public endpoints | N/A |
 | FrankenPHP worker (`reset_kernel: false`) audit | See [FRANKENPHP-WORKER-AUDIT.md](FRANKENPHP-WORKER-AUDIT.md) |
-| AI security audit (REQ-SEC-004) | Pending: audit before the 1.0.0 tag |
+| AI security audit (REQ-SEC-004) | Audited (QS, 2026-11-15, head `cfb2500`): 2 Medium and 5 Low fixed in PR #1; delta re-audit pending |
 
 ## AI security audit
 
-Not yet audited. The audit runs before the 1.0.0 tag; its result is recorded here.
+### 2026-11-15 audit QS
+
+Static and dynamic audit of PR #1 at `cfb2500` (first release, no GHSA). Not taggable as audited; every finding below
+is fixed in the same PR, each with a regression test (`tests/Unit/Audit/AuditQsRegressionTest.php`). A delta
+re-audit of the fixes is pending.
+
+| ID | Severity | Finding | Fix |
+| --- | --- | --- | --- |
+| QS-M-1 | Medium | A dry run returned the fingerprint of a candidate secret: a guess oracle for anyone allowed to write it. | No fingerprint of a secret anywhere (updater result, dry run, `get`, audit entries). |
+| QS-M-2 | Medium | A writable setting without a validator accepted any value of its type (QP-H-1 pattern). | A validator is required for `db` / `db_then_env`; `IntRange`, `SingleLineString`, explicit `Unbounded`. |
+| QS-L-1 | Low | A source whose value read lags its version read poisons the shared cache. | Source contract: never older than the token; no identity map; same node for token and value. |
+| QS-L-2 | Low | Validator exceptions were chained, so a quoted value reached the logs. | Never chained; generic reason for secrets. |
+| QS-L-3 | Low | Fingerprint HMAC used `kernel.secret` without domain separation. | Subkey derived with the label `nowo.runtime-setting.fingerprint.v1`. |
+| QS-L-4 | Low | Expired previous values stayed at rest without another write. | `purgeExpired()` on the writer port, the updater and `nowo:runtime-setting:purge`; every write purges its namespace. |
+| QS-L-5 | Low | README banner path broken (REQ-DOCS-017). | `docs/images/frankenphp-friendly.png`. |
+| QS-I-2 / -3 / -4 / -6 | Info | Long-running loops; `env.NAME` spelling; silent STDIN truncation; lossless id mapping. | Documented; `env.NAME` refused; STDIN overflow refused; documented in the ports. |

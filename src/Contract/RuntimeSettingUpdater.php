@@ -31,7 +31,8 @@ use function strlen;
  * 5. The writer commits its own unit of work (value, version bump, audit). Whatever happens, this process then
  *    forgets what it remembered about the namespace (memo and version), so a failed or rolled-back write never
  *    leaves a value behind (lesson IS R10).
- * 6. {@see SettingChangedEvent} is dispatched only after the writer returned, i.e. after commit, never after a
+ * 6. Fingerprints of secrets are never returned, by a dry run or by a write (audit QS-M-1).
+ * 7. {@see SettingChangedEvent} is dispatched only after the writer returned, i.e. after commit, never after a
  *    failure (lessons QL-M1 / QL-M2). A failing listener is logged, not rethrown: the change is already committed.
  */
 final readonly class RuntimeSettingUpdater
@@ -178,16 +179,31 @@ final readonly class RuntimeSettingUpdater
         return $end;
     }
 
+    /**
+     * Deletes every expired previous value at rest (the resolver already ignores them), then forgets everything this
+     * process remembered. Run it from the `nowo:runtime-setting:purge` command, a scheduled task or a message.
+     *
+     * @throws RuntimeSettingNotWritable
+     *
+     * @return int how many previous values were deleted
+     */
+    public function purgeExpired(): int
+    {
+        try {
+            // @igor-ignore - Calls a port; no request data kept in this service.
+            return $this->writer->purgeExpired($this->clock->now());
+        } finally {
+            // @igor-ignore - Calls the resolver's own boundary/invalidation API; no request data kept in this service.
+            $this->resolver->reset();
+        }
+    }
+
     private function plan(RuntimeSettingDefinition $definition, RuntimeSettingAction $action, ?string $stored): RuntimeSettingChange
     {
-        return new RuntimeSettingChange(
-            $definition->id,
-            $action,
-            null,
-            $stored === null ? null : $this->fingerprinter->fingerprint($definition->id, $stored),
-            null,
-            dryRun: true,
-        );
+        // Never a fingerprint of a secret, not even of a candidate (audit QS-M-1: dry runs were a guess oracle).
+        $fingerprint = $definition->secret || $stored === null ? null : $this->fingerprinter->fingerprint($definition->id, $stored);
+
+        return new RuntimeSettingChange($definition->id, $action, null, $fingerprint, null, true, $definition->secret);
     }
 
     /**
@@ -201,6 +217,11 @@ final readonly class RuntimeSettingUpdater
             // Committed, failed or rolled back: never keep a value or a version read around the write.
             // @igor-ignore - Calls the resolver's own boundary/invalidation API (or a port); no request data kept in this service.
             $this->resolver->forgetNamespace($definition->namespace());
+        }
+
+        // Defense in depth: whatever the writer returned, no fingerprint of a secret leaves the updater (QS-M-1).
+        if ($definition->secret) {
+            $change = $change->withoutFingerprints();
         }
 
         try {

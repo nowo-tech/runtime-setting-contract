@@ -12,6 +12,7 @@ use Nowo\RuntimeSettingContract\Contract\RuntimeSettingErrorPolicy;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingId;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingSource;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingType;
+use Nowo\RuntimeSettingContract\Contract\Validator\Unbounded;
 use Nowo\RuntimeSettingContract\Tests\Fixtures\DemoLimitValidator;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -43,6 +44,7 @@ final class RuntimeSettingDefinitionTest extends TestCase
             RuntimeSettingId::fromString('CHAT_DAYS'),
             RuntimeSettingType::Int,
             RuntimeSettingSource::DbThenEnv,
+            validator: new Unbounded(),
             configured: '30',
             default: 90,
         );

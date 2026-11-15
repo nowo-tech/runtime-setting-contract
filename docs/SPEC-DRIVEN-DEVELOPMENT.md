@@ -57,14 +57,14 @@ classes marked `@internal`.
 | Artifact | Responsibility |
 | --- | --- |
 | `RuntimeValueSourceInterface` / `RuntimeSettingWriterInterface` | Ports a backend implements |
-| `RuntimeSettingDefinition`, `RuntimeSettingId`, `RuntimeSettingType`, `RuntimeSettingSource`, `RuntimeSettingErrorPolicy`, `RuntimeSettingValidatorInterface` | What a bundle registers |
+| `RuntimeSettingDefinition`, `RuntimeSettingId`, `RuntimeSettingType`, `RuntimeSettingSource`, `RuntimeSettingErrorPolicy`, `RuntimeSettingValidatorInterface`, `Validator\IntRange`, `Validator\SingleLineString`, `Validator\Unbounded` | What a bundle registers |
 | `RuntimeSettingResolver` (`get`, `candidates`, `clearRuntimeCache`, `forgetNamespace`, `reset`) | Reading |
-| `RuntimeSettingUpdater` (`writableDefinition`, `prepare`, `set`, `unset`, `rotate`) | Writing, shared by CLI and admin UI |
+| `RuntimeSettingUpdater` (`writableDefinition`, `prepare`, `set`, `unset`, `rotate`, `purgeExpired`) | Writing, shared by CLI and admin UI |
 | `RuntimeSettingRegistry`, `RuntimeValueFingerprinter`, `RuntimeSettingWriteContext`, `RuntimeSettingChange`, `RuntimeSettingAction`, `StoredRuntimeValue`, `RuntimeValueCacheInterface`, `RuntimeValueCacheEntry`, `SettingChangedEvent`, `SystemClock` | Supporting types |
 | `Contract\Exception\*` | Failures; messages never contain values |
 | `InMemoryRuntimeSettingStore` | Reference store |
 | `Psr6RuntimeValueCache` | PSR-6 bridge (`psr/cache` only) |
-| `NowoRuntimeSettingBundle`, `RuntimeSettingBoundaryListener`, `RuntimeSettingsConfiguration`, `DefaultPortsPass`, `UnconfiguredRuntimeSettingStore`, the five commands | Symfony bridge |
+| `NowoRuntimeSettingBundle`, `RuntimeSettingBoundaryListener`, `RuntimeSettingsConfiguration`, `DefaultPortsPass`, `UnconfiguredRuntimeSettingStore`, the six commands | Symfony bridge |
 
 ## Validating the functional spec
 

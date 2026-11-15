@@ -20,7 +20,7 @@ nowo_runtime_setting:
     cache_pool: ~        # PSR-6 pool id (e.g. cache.app) for NON-secret values; recommended in production
     cache_lifetime: 3600 # seconds a cached value is kept (1..86400); a version change makes it unreachable earlier
     version_ttl: 5       # seconds a namespace version token is reused across requests (0..300; 0 = read every request)
-    fingerprint_key: ~   # HMAC key (>= 16 bytes) for fingerprints in audit entries and command output; null = kernel.secret
+    fingerprint_key: ~   # secret (>= 16 bytes) the fingerprint HMAC key is derived from; null = kernel.secret
     command:
         enabled: false   # register nowo:runtime-setting:get|set|unset|list|rotate
 ```
@@ -30,7 +30,7 @@ nowo_runtime_setting:
 | `source` / `writer` | `null` | Aliases `RuntimeValueSourceInterface` / `RuntimeSettingWriterInterface`. An adapter bundle or the host may alias the interfaces directly instead; only when nothing does, the "unconfigured" store is bound (reads fail, writes are refused). |
 | `cache_pool` | `null` | Shares non-secret values between workers and hosts, keyed by version token. Secrets never go there. Without a pool every request reads each setting it uses from the source, one query per setting and request (the version token only gates the pool). **Recommended in production.** |
 | `version_ttl` | `5` | Upper bound for a change to reach a running worker when a pool is used. `0` reads the namespace version on every request (one cheap query per namespace). |
-| `fingerprint_key` | `kernel.secret` | Keyed fingerprints, so a low-entropy secret cannot be confirmed from an audit entry without the key. |
+| `fingerprint_key` | `kernel.secret` | The HMAC key for fingerprints of **non-secret** values is derived from it with the label `nowo.runtime-setting.fingerprint.v1` (domain separation). Rotating it changes every fingerprint; a dedicated `fingerprint_key` avoids that. Secrets are never fingerprinted. |
 | `command.enabled` | `false` | Turn on deliberately. When off, the commands are not registered at all. |
 
 ## Per-setting configuration (adopting bundles)
@@ -58,8 +58,9 @@ nowo_chat_kit:
 ### key
 
 Either `namespace.key` (lowercase, `[a-z][a-z0-9_]*` then dot-separated `[a-z0-9_]+` segments, at most 193 bytes) or
-an environment variable name (`[A-Z][A-Z0-9_]*`, at most 128 bytes, the RuntimeEnvBundle rule). Env-named keys share
-the reserved namespace `env`, so one version token covers them all. The id is matched byte for byte: no case folding,
+an environment variable name (`[A-Z][A-Z0-9_]*`, at most 128 bytes, the RuntimeEnvBundle rule), always written bare:
+`env.NAME` is refused (one spelling per id). Env-named keys share the reserved namespace `env`, so one version token
+covers them all. The id is matched byte for byte: no case folding,
 no trimming.
 
 ### on_error
@@ -104,6 +105,13 @@ RuntimeSettingsConfiguration::registerDefinition(
     default: 90,
 );
 ```
+
+A setting the host can switch to `db` or `db_then_env` needs a validator: `registerDefinition()` throws
+`RuntimeSettingConfigurationError` at container build when the host picks a writable source and the bundle passes no
+`validatorServiceId`, and `RuntimeSettingDefinition` refuses the same at construction. Use
+`Contract\Validator\IntRange` (both sides bounded, refuse or clamp), `Contract\Validator\SingleLineString` (no control
+characters, bounded length; for anything reaching a header, DSN, URL or log line), your own validator, or
+`Contract\Validator\Unbounded` as an explicit, reviewable opt-out. Bound numbers on both sides.
 
 The definition service is tagged `nowo_runtime_setting.definition` and collected by `RuntimeSettingRegistry`. The
 bundle's domain keeps its own typed port (for example `RetentionPolicyProviderInterface::retentionDays(): ?int`); an

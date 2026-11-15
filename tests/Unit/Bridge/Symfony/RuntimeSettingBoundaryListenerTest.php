@@ -11,6 +11,7 @@ use Nowo\RuntimeSettingContract\Contract\RuntimeSettingSource;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingType;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingWriteContext;
 use Nowo\RuntimeSettingContract\Contract\RuntimeValueFingerprinter;
+use Nowo\RuntimeSettingContract\Contract\Validator\Unbounded;
 use Nowo\RuntimeSettingContract\InMemory\InMemoryRuntimeSettingStore;
 use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
@@ -39,7 +40,7 @@ final class RuntimeSettingBoundaryListenerTest extends TestCase
     {
         $this->store      = new InMemoryRuntimeSettingStore();
         $this->resolver   = new RuntimeSettingResolver($this->store, versionTtl: 0);
-        $this->definition = new RuntimeSettingDefinition('a.b', RuntimeSettingType::String, RuntimeSettingSource::Db);
+        $this->definition = new RuntimeSettingDefinition('a.b', RuntimeSettingType::String, RuntimeSettingSource::Db, validator: new Unbounded());
         $this->context    = new RuntimeSettingWriteContext('cli:test', new RuntimeValueFingerprinter(str_repeat('k', 16)));
     }
 

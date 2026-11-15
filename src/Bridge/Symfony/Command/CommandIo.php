@@ -61,13 +61,17 @@ final class CommandIo
             $stream = $opened = fopen($fallback, 'r');
         }
 
-        $raw = is_resource($stream) ? stream_get_contents($stream, RuntimeSettingType::MAX_LENGTH + 2) : false;
+        // One byte more than the longest acceptable input (value plus "\r\n"), so overflow is detected, never cut.
+        $raw = is_resource($stream) ? stream_get_contents($stream, RuntimeSettingType::MAX_LENGTH + 3) : false;
         if (is_resource($opened)) {
             fclose($opened);
         }
 
         if (!is_string($raw)) {
             throw InvalidRuntimeSettingValue::because('could not read the value from STDIN');
+        }
+        if (strlen($raw) > RuntimeSettingType::MAX_LENGTH + 2) {
+            throw InvalidRuntimeSettingValue::because('the value read from STDIN is too long');
         }
         if (str_ends_with($raw, "\r\n")) {
             $raw = substr($raw, 0, -2);

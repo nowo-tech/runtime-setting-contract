@@ -20,11 +20,18 @@ use Nowo\RuntimeSettingContract\Contract\Exception\RuntimeSettingNotWritable;
  *   would then be published although it never committed (audit lessons QL-M1 / QL-M2).
  * - **Values arrive validated** and formatted as strings. Encrypt secrets ({@see RuntimeSettingDefinition::$secret})
  *   at rest.
- * - **Audit.** Record actor, id, action and the old and new fingerprints from the context's fingerprinter, never the
- *   value. Record it once the write committed (or in the same transaction).
+ * - **Audit.** Record actor, id, action and the old and new fingerprints from
+ *   {@see RuntimeSettingWriteContext::fingerprint()}, never the value. For a secret that method returns null: record
+ *   only that the secret changed, never a fingerprint (audit QS-M-1). Return the same (null) fingerprints in the
+ *   {@see RuntimeSettingChange}. Record the entry once the write committed (or in the same transaction).
  * - **Rotation.** {@see rotate()} moves the current value to `previous` with the given expiry and stores the new one
- *   as current. {@see set()} and {@see unset()} drop any previous value. Purge an expired previous value on the next
- *   write at the latest.
+ *   as current. {@see set()} and {@see unset()} drop any previous value.
+ * - **Purge.** Every write also deletes the expired previous values of its namespace (at least), and
+ *   {@see purgeExpired()} deletes every expired previous value of the store. The updater calls it from
+ *   `RuntimeSettingUpdater::purgeExpired()`, which the `nowo:runtime-setting:purge` command (or a host's scheduled
+ *   task or message) runs. A previous value is never served after its expiry anyway; the purge removes it at rest.
+ * - **Ids.** Store namespace and key verbatim and compare them exactly; never derive one id form from the other
+ *   (`chat.retention_days` and `CHAT_RETENTION_DAYS` are two settings).
  * - **No events.** Do not dispatch {@see SettingChangedEvent}: the updater does, after the call returned.
  * - **Worker mode.** No per-request state.
  */
@@ -44,4 +51,12 @@ interface RuntimeSettingWriterInterface
      * @throws RuntimeSettingNotWritable
      */
     public function rotate(RuntimeSettingDefinition $definition, string $value, DateTimeImmutable $previousExpiresAt, RuntimeSettingWriteContext $context): RuntimeSettingChange;
+
+    /**
+     * Deletes every previous value whose expiry is at or before `$now`, in its own transaction, and bumps the version
+     * token of each namespace it changed. Returns how many previous values were deleted.
+     *
+     * @throws RuntimeSettingNotWritable
+     */
+    public function purgeExpired(DateTimeImmutable $now): int;
 }

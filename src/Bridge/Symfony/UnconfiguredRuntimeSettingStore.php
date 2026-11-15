@@ -45,4 +45,9 @@ final readonly class UnconfiguredRuntimeSettingStore implements RuntimeValueSour
     {
         throw RuntimeSettingNotWritable::noWriter();
     }
+
+    public function purgeExpired(DateTimeImmutable $now): int
+    {
+        throw RuntimeSettingNotWritable::noWriter();
+    }
 }

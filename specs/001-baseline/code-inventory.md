@@ -2,8 +2,8 @@
 
 **Last audited:** 2026-11-16  
 **Package:** `nowo-tech/runtime-setting-contract`  
-**Production units:** 42 (every file tracked under `src/`)  
-**Mapped:** 42  
+**Production units:** 46 (every file tracked under `src/`)  
+**Mapped:** 46  
 **Unmapped:** 0
 
 Audit: `git ls-files src | wc -l` must equal the mapped count below.
@@ -33,6 +33,14 @@ Audit: `git ls-files src | wc -l` must equal the mapped count below.
 | `src/Contract/SettingChangedEvent.php` | FR-UPD-005 |
 | `src/Contract/StoredRuntimeValue.php` | FR-SRC-001, FR-RES-006 |
 | `src/Contract/SystemClock.php` | FR-RES-004, FR-UPD-004 |
+
+## Contract validators
+
+| Source path | Requirement IDs |
+| --- | --- |
+| `src/Contract/Validator/IntRange.php` | FR-DEF-003 |
+| `src/Contract/Validator/SingleLineString.php` | FR-DEF-003 |
+| `src/Contract/Validator/Unbounded.php` | FR-DEF-003 |
 
 ## Contract exceptions
 
@@ -77,6 +85,7 @@ Audit: `git ls-files src | wc -l` must equal the mapped count below.
 | `src/Bridge/Symfony/Command/CommandIo.php` | FR-CMD-001 |
 | `src/Bridge/Symfony/Command/GetRuntimeSettingCommand.php` | FR-CMD-001 |
 | `src/Bridge/Symfony/Command/ListRuntimeSettingsCommand.php` | FR-CMD-001 |
+| `src/Bridge/Symfony/Command/PurgeRuntimeSettingsCommand.php` | FR-CMD-001, FR-UPD-006 |
 | `src/Bridge/Symfony/Command/RotateRuntimeSettingCommand.php` | FR-CMD-001 |
 | `src/Bridge/Symfony/Command/SetRuntimeSettingCommand.php` | FR-CMD-001 |
 | `src/Bridge/Symfony/Command/UnsetRuntimeSettingCommand.php` | FR-CMD-001 |

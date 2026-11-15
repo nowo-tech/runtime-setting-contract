@@ -12,6 +12,7 @@ use Nowo\RuntimeSettingContract\Contract\RuntimeSettingSource;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingType;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingUpdater;
 use Nowo\RuntimeSettingContract\Contract\RuntimeValueFingerprinter;
+use Nowo\RuntimeSettingContract\Contract\Validator\Unbounded;
 use Nowo\RuntimeSettingContract\InMemory\InMemoryRuntimeSettingStore;
 use Symfony\Component\HttpKernel\Kernel;
 
@@ -22,7 +23,7 @@ if (class_exists(Kernel::class) || interface_exists(Driver::class)) {
 }
 
 $store      = new InMemoryRuntimeSettingStore();
-$definition = new RuntimeSettingDefinition('CHAT_RETENTION_DAYS', RuntimeSettingType::Int, RuntimeSettingSource::DbThenEnv, configured: '30');
+$definition = new RuntimeSettingDefinition('CHAT_RETENTION_DAYS', RuntimeSettingType::Int, RuntimeSettingSource::DbThenEnv, validator: new Unbounded(), configured: '30');
 $resolver   = new RuntimeSettingResolver($store, versionTtl: 0);
 $updater    = new RuntimeSettingUpdater(new RuntimeSettingRegistry([$definition]), $store, $resolver, new RuntimeValueFingerprinter(str_repeat('k', 32)));
 

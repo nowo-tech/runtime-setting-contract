@@ -22,10 +22,19 @@ final readonly class RuntimeSettingWriteContext
      */
     public function __construct(
         public string $actor,
-        public RuntimeValueFingerprinter $fingerprinter,
+        private RuntimeValueFingerprinter $fingerprinter,
     ) {
         if (preg_match(self::ACTOR_PATTERN, $actor) !== 1) {
             throw RuntimeSettingConfigurationError::because('The actor must look like "cli:<user>" or "user:<id>".');
         }
+    }
+
+    /**
+     * The fingerprint a writer records for a value of this setting, or null for a secret: a secret's audit entry
+     * records only that it changed (audit QS-M-1).
+     */
+    public function fingerprint(RuntimeSettingDefinition $definition, ?string $value): ?string
+    {
+        return $definition->secret || $value === null ? null : $this->fingerprinter->fingerprint($definition->id, $value);
     }
 }

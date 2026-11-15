@@ -28,6 +28,7 @@ use Nowo\RuntimeSettingContract\Contract\RuntimeSettingType;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingUpdater;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingWriteContext;
 use Nowo\RuntimeSettingContract\Contract\RuntimeValueFingerprinter;
+use Nowo\RuntimeSettingContract\Contract\Validator\Unbounded;
 use Nowo\RuntimeSettingContract\InMemory\InMemoryRuntimeSettingStore;
 use Nowo\RuntimeSettingContract\Tests\Fixtures\DemoLimitValidator;
 use Nowo\RuntimeSettingContract\Tests\Support\MutableClock;
@@ -66,8 +67,8 @@ final class CommandsTest extends TestCase
         $this->registry      = new RuntimeSettingRegistry([
             new RuntimeSettingDefinition('chat.days', RuntimeSettingType::Int, RuntimeSettingSource::DbThenEnv, validator: new DemoLimitValidator(), configured: 30),
             new RuntimeSettingDefinition('chat.mode', RuntimeSettingType::String, configured: 'normal'),
-            new RuntimeSettingDefinition('chat.unset', RuntimeSettingType::String, RuntimeSettingSource::Db),
-            new RuntimeSettingDefinition('API_TOKEN', RuntimeSettingType::String, RuntimeSettingSource::Db, secret: true),
+            new RuntimeSettingDefinition('chat.unset', RuntimeSettingType::String, RuntimeSettingSource::Db, validator: new Unbounded()),
+            new RuntimeSettingDefinition('API_TOKEN', RuntimeSettingType::String, RuntimeSettingSource::Db, secret: true, validator: new Unbounded()),
         ]);
         $this->resolver = new RuntimeSettingResolver($this->store, null, $this->clock, 0);
     }
@@ -203,10 +204,11 @@ final class CommandsTest extends TestCase
     public function getMasksSecrets(): void
     {
         $this->updater()->set('API_TOKEN', self::SECRET, 'cli:test');
-        $tester = $this->tester(new GetRuntimeSettingCommand($this->registry, $this->resolver, $this->fingerprinter));
+        $tester = $this->tester(new GetRuntimeSettingCommand($this->registry, $this->resolver));
 
         self::assertSame(Command::SUCCESS, $tester->execute(['id' => 'API_TOKEN']));
-        self::assertStringContainsString('API_TOKEN: ' . CommandIo::MASK . ' (secret, fingerprint ' . $this->fingerprinter->fingerprint(RuntimeSettingId::fromString('API_TOKEN'), self::SECRET) . ')', $tester->getDisplay());
+        self::assertStringContainsString('API_TOKEN: ' . CommandIo::MASK . ' (secret)', $tester->getDisplay());
+        self::assertStringNotContainsString($this->fingerprinter->fingerprint(RuntimeSettingId::fromString('API_TOKEN'), self::SECRET), $tester->getDisplay(), 'no fingerprint of a secret (QS-M-1)');
         self::assertStringNotContainsString(self::SECRET, $tester->getDisplay());
 
         self::assertSame(Command::SUCCESS, $tester->execute(['id' => 'chat.days']));
@@ -222,7 +224,7 @@ final class CommandsTest extends TestCase
     public function listShowsSettingsWithSecretsMasked(): void
     {
         $this->updater()->set('API_TOKEN', self::SECRET, 'cli:test');
-        $failing = new RuntimeSettingRegistry([new RuntimeSettingDefinition('down.x', RuntimeSettingType::String, RuntimeSettingSource::Db)]);
+        $failing = new RuntimeSettingRegistry([new RuntimeSettingDefinition('down.x', RuntimeSettingType::String, RuntimeSettingSource::Db, validator: new Unbounded())]);
         $tester  = $this->tester(new ListRuntimeSettingsCommand($this->registry, $this->resolver));
 
         self::assertSame(Command::SUCCESS, $tester->execute([]));
@@ -282,7 +284,7 @@ final class CommandsTest extends TestCase
     public function theUnconfiguredStoreRefusesEverything(): void
     {
         $store      = new UnconfiguredRuntimeSettingStore();
-        $definition = new RuntimeSettingDefinition('a.b', RuntimeSettingType::String, RuntimeSettingSource::Db, RuntimeSettingErrorPolicy::Fallback, configured: 'env');
+        $definition = new RuntimeSettingDefinition('a.b', RuntimeSettingType::String, RuntimeSettingSource::Db, RuntimeSettingErrorPolicy::Fallback, validator: new Unbounded(), configured: 'env');
         $context    = new RuntimeSettingWriteContext('cli:test', $this->fingerprinter);
 
         self::assertSame('env', (new RuntimeSettingResolver($store))->get($definition));

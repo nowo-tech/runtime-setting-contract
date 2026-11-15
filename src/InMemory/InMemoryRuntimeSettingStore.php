@@ -41,7 +41,7 @@ final class InMemoryRuntimeSettingStore implements RuntimeValueSourceInterface, 
     /** @var array<string, string> */
     private array $versions = [];
 
-    /** @var list<array{actor: string, id: string, action: string, old: ?string, new: ?string, at: DateTimeImmutable}> */
+    /** @var list<array{actor: string, id: string, action: string, secret: bool, old: ?string, new: ?string, at: DateTimeImmutable}> */
     private array $audit = [];
 
     private int $counter = 0;
@@ -65,12 +65,12 @@ final class InMemoryRuntimeSettingStore implements RuntimeValueSourceInterface, 
 
     public function set(RuntimeSettingDefinition $definition, string $value, RuntimeSettingWriteContext $context): RuntimeSettingChange
     {
-        return $this->write($definition->id, RuntimeSettingAction::Set, new StoredRuntimeValue($value), $context);
+        return $this->write($definition, RuntimeSettingAction::Set, new StoredRuntimeValue($value), $context);
     }
 
     public function unset(RuntimeSettingDefinition $definition, RuntimeSettingWriteContext $context): RuntimeSettingChange
     {
-        return $this->write($definition->id, RuntimeSettingAction::Unset, null, $context);
+        return $this->write($definition, RuntimeSettingAction::Unset, null, $context);
     }
 
     public function rotate(RuntimeSettingDefinition $definition, string $value, DateTimeImmutable $previousExpiresAt, RuntimeSettingWriteContext $context): RuntimeSettingChange
@@ -78,7 +78,7 @@ final class InMemoryRuntimeSettingStore implements RuntimeValueSourceInterface, 
         $old = $this->read($definition->id);
 
         return $this->write(
-            $definition->id,
+            $definition,
             RuntimeSettingAction::Rotate,
             $old instanceof StoredRuntimeValue ? new StoredRuntimeValue($value, $old->current, $previousExpiresAt) : new StoredRuntimeValue($value),
             $context,
@@ -86,20 +86,36 @@ final class InMemoryRuntimeSettingStore implements RuntimeValueSourceInterface, 
     }
 
     /**
-     * Audit trail: actor, id, action, fingerprints and time; never a value.
+     * Audit trail: actor, id, action, fingerprints (null for secrets: only the change is recorded) and time; never a
+     * value.
      *
-     * @return list<array{actor: string, id: string, action: string, old: ?string, new: ?string, at: DateTimeImmutable}>
+     * @return list<array{actor: string, id: string, action: string, secret: bool, old: ?string, new: ?string, at: DateTimeImmutable}>
      */
     public function auditLog(): array
     {
         return $this->audit;
     }
 
-    private function write(RuntimeSettingId $id, RuntimeSettingAction $action, ?StoredRuntimeValue $new, RuntimeSettingWriteContext $context): RuntimeSettingChange
+    public function purgeExpired(DateTimeImmutable $now): int
     {
+        $purged = 0;
+        foreach ($this->values as $namespace => $_) {
+            $count = $this->purgeNamespace($namespace, $now);
+            if ($count > 0) {
+                $purged += $count;
+                $this->bump($namespace);
+            }
+        }
+
+        return $purged;
+    }
+
+    private function write(RuntimeSettingDefinition $definition, RuntimeSettingAction $action, ?StoredRuntimeValue $new, RuntimeSettingWriteContext $context): RuntimeSettingChange
+    {
+        $id             = $definition->id;
         $old            = $this->read($id);
-        $oldFingerprint = $old instanceof StoredRuntimeValue ? $context->fingerprinter->fingerprint($id, $old->current) : null;
-        $newFingerprint = $new instanceof StoredRuntimeValue ? $context->fingerprinter->fingerprint($id, $new->current) : null;
+        $oldFingerprint = $context->fingerprint($definition, $old?->current);
+        $newFingerprint = $context->fingerprint($definition, $new?->current);
 
         if (!$new instanceof StoredRuntimeValue) {
             // @igor-ignore - Reference in-memory store: holding the data is its purpose (a store, not a request cache); bounded audit trail.
@@ -108,19 +124,15 @@ final class InMemoryRuntimeSettingStore implements RuntimeValueSourceInterface, 
             // @igor-ignore - Reference in-memory store: holding the data is its purpose (a store, not a request cache); bounded audit trail.
             $this->values[$id->namespace][$id->key] = $new;
         }
-        $this->purgeExpired($id->namespace);
-
-        // Counter plus random part: a token is never handed out twice (see RuntimeValueSourceInterface).
-        // @igor-ignore - Reference in-memory store: holding the data is its purpose (a store, not a request cache); bounded audit trail.
-        $version = ++$this->counter . '-' . bin2hex(random_bytes(8));
-        // @igor-ignore - Reference in-memory store: holding the data is its purpose (a store, not a request cache); bounded audit trail.
-        $this->versions[$id->namespace] = $version;
+        $this->purgeNamespace($id->namespace, $this->clock->now());
+        $version = $this->bump($id->namespace);
 
         // @igor-ignore - Reference in-memory store: holding the data is its purpose (a store, not a request cache); bounded audit trail.
         $this->audit[] = [
             'actor'  => $context->actor,
             'id'     => $id->toString(),
             'action' => $action->value,
+            'secret' => $definition->secret,
             'old'    => $oldFingerprint,
             'new'    => $newFingerprint,
             'at'     => $this->clock->now(),
@@ -130,18 +142,32 @@ final class InMemoryRuntimeSettingStore implements RuntimeValueSourceInterface, 
             $this->audit = array_slice($this->audit, -self::MAX_AUDIT_ENTRIES);
         }
 
-        return new RuntimeSettingChange($id, $action, $oldFingerprint, $newFingerprint, $version);
+        return new RuntimeSettingChange($id, $action, $oldFingerprint, $newFingerprint, $version, false, $definition->secret);
     }
 
-    private function purgeExpired(string $namespace): void
+    private function bump(string $namespace): string
     {
-        $now = $this->clock->now();
+        // Counter plus random part: a token is never handed out twice (see RuntimeValueSourceInterface).
+        // @igor-ignore - Reference in-memory store: holding the data is its purpose (a store, not a request cache); bounded audit trail.
+        $version = ++$this->counter . '-' . bin2hex(random_bytes(8));
+        // @igor-ignore - Reference in-memory store: holding the data is its purpose (a store, not a request cache); bounded audit trail.
+        $this->versions[$namespace] = $version;
+
+        return $version;
+    }
+
+    private function purgeNamespace(string $namespace, DateTimeImmutable $now): int
+    {
+        $purged = 0;
         // @igor-ignore - Reference in-memory store: holding the data is its purpose (a store, not a request cache); bounded audit trail.
         foreach ($this->values[$namespace] ?? [] as $key => $stored) {
             if ($stored->previous !== null && $stored->previousAt($now) === null) {
                 // @igor-ignore - Reference in-memory store: holding the data is its purpose (a store, not a request cache); bounded audit trail.
                 $this->values[$namespace][$key] = new StoredRuntimeValue($stored->current);
+                ++$purged;
             }
         }
+
+        return $purged;
     }
 }

@@ -16,6 +16,7 @@ use Nowo\RuntimeSettingContract\Contract\RuntimeSettingSource;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingType;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingWriteContext;
 use Nowo\RuntimeSettingContract\Contract\RuntimeValueFingerprinter;
+use Nowo\RuntimeSettingContract\Contract\Validator\Unbounded;
 use Nowo\RuntimeSettingContract\InMemory\InMemoryRuntimeSettingStore;
 use Nowo\RuntimeSettingContract\Tests\Fixtures\DemoLimitValidator;
 use Nowo\RuntimeSettingContract\Tests\Support\CountingSource;
@@ -225,7 +226,7 @@ final class RuntimeSettingResolverTest extends TestCase
     public function theVersionIsReadOncePerRequestPerNamespace(): void
     {
         $a        = $this->int(RuntimeSettingSource::Db);
-        $b        = new RuntimeSettingDefinition('chat.other', RuntimeSettingType::Int, RuntimeSettingSource::Db);
+        $b        = new RuntimeSettingDefinition('chat.other', RuntimeSettingType::Int, RuntimeSettingSource::Db, validator: new Unbounded());
         $resolver = $this->resolver();
 
         $resolver->get($a);
@@ -307,7 +308,7 @@ final class RuntimeSettingResolverTest extends TestCase
     public function secretsNeverReachTheSharedCache(): void
     {
         $pool       = new ArrayAdapter();
-        $definition = new RuntimeSettingDefinition('API_TOKEN', RuntimeSettingType::String, RuntimeSettingSource::Db, secret: true);
+        $definition = new RuntimeSettingDefinition('API_TOKEN', RuntimeSettingType::String, RuntimeSettingSource::Db, secret: true, validator: new Unbounded());
         $this->store->set($definition, 'REDACTED-TEST-SECRET', $this->context);
 
         self::assertSame('REDACTED-TEST-SECRET', $this->resolver(cache: new Psr6RuntimeValueCache($pool))->get($definition));
@@ -318,8 +319,8 @@ final class RuntimeSettingResolverTest extends TestCase
     public function forgetNamespaceDropsOnlyThatNamespace(): void
     {
         $chat     = $this->int(RuntimeSettingSource::Db);
-        $mail     = new RuntimeSettingDefinition('mail.port', RuntimeSettingType::Int, RuntimeSettingSource::Db);
-        $env      = new RuntimeSettingDefinition('MAIL_HOST', RuntimeSettingType::String, RuntimeSettingSource::Db);
+        $mail     = new RuntimeSettingDefinition('mail.port', RuntimeSettingType::Int, RuntimeSettingSource::Db, validator: new Unbounded());
+        $env      = new RuntimeSettingDefinition('MAIL_HOST', RuntimeSettingType::String, RuntimeSettingSource::Db, validator: new Unbounded());
         $resolver = $this->resolver(versionTtl: 300);
         $this->store->set($chat, '1', $this->context);
         $this->store->set($mail, '25', $this->context);
@@ -357,7 +358,7 @@ final class RuntimeSettingResolverTest extends TestCase
     {
         $resolver = $this->resolver(versionTtl: 300);
         for ($i = 0; $i < RuntimeSettingResolver::MAX_ENTRIES + 5; ++$i) {
-            $resolver->get(new RuntimeSettingDefinition('ns' . $i . '.k', RuntimeSettingType::Int, RuntimeSettingSource::Db));
+            $resolver->get(new RuntimeSettingDefinition('ns' . $i . '.k', RuntimeSettingType::Int, RuntimeSettingSource::Db, validator: new Unbounded()));
         }
 
         $memo     = (fn (): array => $this->memo)->call($resolver);
@@ -389,7 +390,7 @@ final class RuntimeSettingResolverTest extends TestCase
     #[Test]
     public function bothCurrentAndPreviousAreAcceptedInTheWindowOnlyCurrentAfter(): void
     {
-        $definition = new RuntimeSettingDefinition('webhook.secret', RuntimeSettingType::String, RuntimeSettingSource::Db, secret: true);
+        $definition = new RuntimeSettingDefinition('webhook.secret', RuntimeSettingType::String, RuntimeSettingSource::Db, secret: true, validator: new Unbounded());
         $resolver   = $this->resolver();
         $this->store->set($definition, 'REDACTED-TEST-OLD', $this->context);
         $this->store->rotate($definition, 'REDACTED-TEST-NEW', $this->clock->now()->modify('+1 hour'), $this->context);
@@ -426,6 +427,6 @@ final class RuntimeSettingResolverTest extends TestCase
         ?DemoLimitValidator $validator = null,
         RuntimeSettingErrorPolicy $onError = RuntimeSettingErrorPolicy::FailClosed,
     ): RuntimeSettingDefinition {
-        return new RuntimeSettingDefinition('chat.days', RuntimeSettingType::Int, $source, $onError, validator: $validator, configured: $configured, default: $default, required: $required);
+        return new RuntimeSettingDefinition('chat.days', RuntimeSettingType::Int, $source, $onError, validator: $validator ?? new Unbounded(), configured: $configured, default: $default, required: $required);
     }
 }

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Nowo\RuntimeSettingContract\Bridge\Symfony\DependencyInjection;
 
 use Nowo\RuntimeSettingContract\Contract\Exception\InvalidRuntimeSettingId;
+use Nowo\RuntimeSettingContract\Contract\Exception\RuntimeSettingConfigurationError;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingDefinition;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingErrorPolicy;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingId;
@@ -98,6 +99,8 @@ final class RuntimeSettingsConfiguration
      *
      * @param array{source: string, key: string, on_error: string} $runtime the processed `runtime.<setting>` node
      * @param mixed $configured the configured (env) value, may be an `%env()%` placeholder
+     *
+     * @throws RuntimeSettingConfigurationError when the host chose a writable source and the bundle passes no validator
      */
     public static function registerDefinition(
         ContainerBuilder $container,
@@ -111,6 +114,11 @@ final class RuntimeSettingsConfiguration
         bool $required = false,
         ?int $maxLength = null,
     ): Definition {
+        // Fail at container build, not at the first request (audit QS-M-2).
+        if ($validatorServiceId === null && $runtime['source'] !== RuntimeSettingSource::Env->value) {
+            throw RuntimeSettingConfigurationError::because('Runtime setting "' . $runtime['key'] . '" (' . $serviceId . ') uses "source: ' . $runtime['source'] . '" but its bundle registers no validator. Pass validatorServiceId (IntRange, SingleLineString, your own validator, or Unbounded explicitly).');
+        }
+
         $definition = new Definition(RuntimeSettingDefinition::class, [
             '$id'         => $runtime['key'],
             '$type'       => $type,

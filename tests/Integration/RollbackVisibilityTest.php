@@ -12,6 +12,7 @@ use Nowo\RuntimeSettingContract\Contract\RuntimeSettingSource;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingType;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingUpdater;
 use Nowo\RuntimeSettingContract\Contract\RuntimeValueFingerprinter;
+use Nowo\RuntimeSettingContract\Contract\Validator\Unbounded;
 use Nowo\RuntimeSettingContract\Tests\Support\PdoRuntimeSettingStore;
 use Nowo\RuntimeSettingContract\Tests\Support\RecordingDispatcher;
 use PHPUnit\Framework\Attributes\Test;
@@ -31,7 +32,7 @@ final class RollbackVisibilityTest extends TestCase
     {
         $store      = new PdoRuntimeSettingStore('sqlite::memory:');
         $cache      = new Psr6RuntimeValueCache(new ArrayAdapter());
-        $definition = new RuntimeSettingDefinition('demo.greeting', RuntimeSettingType::String, RuntimeSettingSource::Db);
+        $definition = new RuntimeSettingDefinition('demo.greeting', RuntimeSettingType::String, RuntimeSettingSource::Db, validator: new Unbounded());
         $resolver   = new RuntimeSettingResolver($store, $cache, versionTtl: 0);
         $dispatcher = new RecordingDispatcher();
         $updater    = new RuntimeSettingUpdater(new RuntimeSettingRegistry([$definition]), $store, $resolver, new RuntimeValueFingerprinter(str_repeat('k', 32)), $dispatcher);
@@ -61,7 +62,7 @@ final class RollbackVisibilityTest extends TestCase
     public function aWriteThatFailsBeforeCommitPublishesNothingAndLeavesNoMemo(): void
     {
         $store      = new PdoRuntimeSettingStore('sqlite::memory:');
-        $definition = new RuntimeSettingDefinition('demo.greeting', RuntimeSettingType::String, RuntimeSettingSource::Db);
+        $definition = new RuntimeSettingDefinition('demo.greeting', RuntimeSettingType::String, RuntimeSettingSource::Db, validator: new Unbounded());
         $resolver   = new RuntimeSettingResolver($store, versionTtl: 300);
         $dispatcher = new RecordingDispatcher();
         $updater    = new RuntimeSettingUpdater(new RuntimeSettingRegistry([$definition]), $store, $resolver, new RuntimeValueFingerprinter(str_repeat('k', 32)), $dispatcher);

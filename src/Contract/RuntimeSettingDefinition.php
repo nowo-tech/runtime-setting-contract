@@ -7,6 +7,9 @@ namespace Nowo\RuntimeSettingContract\Contract;
 use Closure;
 use Nowo\RuntimeSettingContract\Contract\Exception\InvalidRuntimeSettingValue;
 use Nowo\RuntimeSettingContract\Contract\Exception\RuntimeSettingConfigurationError;
+use Nowo\RuntimeSettingContract\Contract\Validator\IntRange;
+use Nowo\RuntimeSettingContract\Contract\Validator\SingleLineString;
+use Nowo\RuntimeSettingContract\Contract\Validator\Unbounded;
 use Throwable;
 
 use function is_callable;
@@ -38,7 +41,10 @@ final readonly class RuntimeSettingDefinition
      * @param mixed $default the bundle's documented default, used when nothing else gives a value
      * @param (callable(bool|float|int|string): (bool|float|int|string))|RuntimeSettingValidatorInterface|null $validator
      *
-     * @throws RuntimeSettingConfigurationError when the configured value or the default does not fit the type
+     * @throws RuntimeSettingConfigurationError when the configured value or the default does not fit the type, or when a
+     *                                          setting that can be written (source db / db_then_env) has no validator:
+     *                                          bound it (e.g. {@see IntRange}, {@see SingleLineString}) or opt out
+     *                                          explicitly with {@see Unbounded}
      */
     public function __construct(
         RuntimeSettingId|string $id,
@@ -64,6 +70,12 @@ final readonly class RuntimeSettingDefinition
             is_callable($validator)                                => Closure::fromCallable($validator),
             default                                                => null,
         };
+
+        // Bounds are a decision, not an accident (audit QS-M-2, lesson QP-H-1): a value that can be written at runtime
+        // needs a validator, or the explicit Unbounded opt-out.
+        if (!$this->validator instanceof Closure && $this->source !== RuntimeSettingSource::Env) {
+            throw RuntimeSettingConfigurationError::because('Runtime setting "' . $this->id->toString() . '" can be written at runtime (source: ' . $this->source->value . ') but has no validator. Bound it (IntRange, SingleLineString, your own validator) or declare it Unbounded explicitly.');
+        }
 
         $this->configured = $this->normalizeConfigured($configured, 'configured value');
         $this->default    = $this->normalizeConfigured($default, 'default');
@@ -134,9 +146,11 @@ final readonly class RuntimeSettingDefinition
         try {
             $validated = ($this->validator)($value);
         } catch (InvalidRuntimeSettingValue $e) {
-            throw $e;
+            // A secret's validator may quote the value: keep only a generic reason, nothing chained (audit QS-L-2).
+            throw $this->secret ? InvalidRuntimeSettingValue::because('refused by the validator') : $e;
         } catch (Throwable $e) {
-            throw InvalidRuntimeSettingValue::because('refused by the validator', $e);
+            // Never chain a foreign exception: its message may quote the value (audit QS-L-2).
+            throw InvalidRuntimeSettingValue::because($this->secret ? 'refused by the validator' : 'refused by the validator (' . $e::class . ')');
         }
 
         // Round-trip through the type: a validator cannot widen the type or return an unbounded value.

@@ -53,10 +53,11 @@ the kernel not reset, and with DDD hosts (the contract is framework-free).
 
 | ID | Requirement |
 |---|---|
-| FR-ID-001 | Ids are `namespace.key` or an env variable name (`env` namespace), ASCII, matched byte for byte, bounded, `/D` patterns; malformed ids are refused without echo. |
+| FR-ID-001 | Ids are `namespace.key` or a bare env variable name (`env` namespace; `env.NAME` refused), ASCII, matched byte for byte, bounded, `/D` patterns; malformed ids are refused without echo. |
 | FR-TYPE-001 | Values are strings in the source, parsed strictly by type (string UTF-8, int in range, finite float, bool), bounded before parsing. |
 | FR-DEF-001 | A definition carries id, type, source, `on_error` (default `fail_closed`), secret flag, validator, configured value, default, required, max length; invalid configured values or defaults are configuration errors. |
-| FR-DEF-002 | The validator runs on every value; anything it throws refuses the value; its result is re-checked against type and bound. |
+| FR-DEF-002 | The validator runs on every value; anything it throws refuses the value without chaining it (generic reason for secrets); its result is re-checked against type and bound. |
+| FR-DEF-003 | A definition with a writable source (`db`, `db_then_env`) requires a validator; `IntRange`, `SingleLineString` and the explicit `Unbounded` are provided. |
 | FR-REG-001 | The registry holds the registered definitions, refuses duplicates and unknown ids. |
 | FR-RES-001 | `source: env` never reads the source. |
 | FR-RES-002 | `db` uses the source, else the default, else fails when required; `db_then_env` uses the source, else configured, else default. |
@@ -70,17 +71,18 @@ the kernel not reset, and with DDD hosts (the contract is framework-free).
 | FR-UPD-002 | Values are bounded, parsed and validated before writing; the validated value is stored. |
 | FR-UPD-003 | Dry runs write nothing. |
 | FR-UPD-004 | Rotation windows are 0 s to 30 days. |
+| FR-UPD-006 | No fingerprint of a secret leaves the updater (dry run or write). `purgeExpired()` deletes expired previous values and resets the resolver. |
 | FR-UPD-005 | After every write (committed or not) the namespace is forgotten; `SettingChangedEvent` (ids only) only after the writer returned; a failing listener is logged. |
-| FR-SRC-001 | Source contract: never-reused version tokens bumped in the write transaction; committed reads; plain strings. |
-| FR-WRT-001 | Writer contract: own transaction, refuse nested, encrypt secrets, audit with fingerprints, no events. |
-| FR-FP-001 | Fingerprints are keyed HMAC-SHA-256 over id and value, key at least 16 bytes. |
+| FR-SRC-001 | Source contract: never-reused version tokens bumped in the write transaction; committed reads never older than the token (no identity map, same node); plain strings; ids stored verbatim. |
+| FR-WRT-001 | Writer contract: own transaction, refuse nested, encrypt secrets, audit with fingerprints (none for secrets), purge expired previous values on write and in `purgeExpired()`, no events. |
+| FR-FP-001 | Fingerprints (non-secret values only) are HMAC-SHA-256 over id and value, with a key derived from a host secret of at least 16 bytes and the label `nowo.runtime-setting.fingerprint.v1`. |
 | FR-MEM-001 | The in-memory store follows FR-SRC-001 / FR-WRT-001 with a bounded audit trail. |
 | FR-SF-001 | Symfony bundle `nowo_runtime_setting`: source, writer, cache pool, cache lifetime, version TTL, fingerprint key, `command.enabled` (default false). |
 | FR-SF-002 | Boundary listener: main `kernel.request`, `kernel.terminate`, `console.command`, `console.terminate`, Messenger received / handled / failed; `ResetInterface`. |
 | FR-SF-003 | PSR-6 adapter validates entries strictly and matches the version token exactly. |
 | FR-SF-004 | Config tree helper and definition registration for adopting bundles. |
 | FR-SF-005 | Ports default to the unconfigured store only when nothing else binds them. |
-| FR-CMD-001 | Commands get / set / unset / list / rotate; secrets only via `--stdin`, never echoed; actor `cli:<os user>`; `--dry-run`; exit 1 on refusal. |
+| FR-CMD-001 | Commands get / set / unset / list / rotate / purge; secrets only via `--stdin`, never echoed, never fingerprinted; STDIN overflow refused; actor `cli:<os user>`; `--dry-run`; exit 1 on refusal. |
 | FR-ARCH-001 | `src/Contract` and `src/InMemory` import no Symfony or Doctrine. |
 
 ## Scope

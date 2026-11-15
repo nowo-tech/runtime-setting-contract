@@ -7,7 +7,6 @@ namespace Nowo\RuntimeSettingContract\Bridge\Symfony\Command;
 use Nowo\RuntimeSettingContract\Contract\Exception\RuntimeSettingExceptionInterface;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingRegistry;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingResolver;
-use Nowo\RuntimeSettingContract\Contract\RuntimeValueFingerprinter;
 use Symfony\Component\Console\Attribute\AsCommand;
 use Symfony\Component\Console\Command\Command;
 use Symfony\Component\Console\Input\InputArgument;
@@ -23,7 +22,6 @@ final class GetRuntimeSettingCommand extends Command
     public function __construct(
         private readonly RuntimeSettingRegistry $registry,
         private readonly RuntimeSettingResolver $resolver,
-        private readonly RuntimeValueFingerprinter $fingerprinter,
     ) {
         parent::__construct();
     }
@@ -52,12 +50,8 @@ final class GetRuntimeSettingCommand extends Command
         if ($value === null) {
             $io->writeln(sprintf('%s: (not set)', $definition->idString()));
         } elseif ($definition->secret) {
-            $io->writeln(sprintf(
-                '%s: %s (secret, fingerprint %s)',
-                $definition->idString(),
-                CommandIo::MASK,
-                $this->fingerprinter->fingerprint($definition->id, $definition->type->format($value)),
-            ));
+            // Masked, and no fingerprint: a fingerprint of a secret confirms guesses (audit QS-M-1).
+            $io->writeln(sprintf('%s: %s (secret)', $definition->idString(), CommandIo::MASK));
         } else {
             $io->writeln(sprintf('%s: %s', $definition->idString(), $definition->type->format($value)));
         }

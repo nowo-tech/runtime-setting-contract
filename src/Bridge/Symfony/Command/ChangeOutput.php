@@ -24,6 +24,12 @@ final class ChangeOutput
             RuntimeSettingAction::Rotate => 'rotated',
         };
 
+        if ($change->secret) {
+            return $change->dryRun
+                ? sprintf('Dry run: %s would be %s (secret: no fingerprint). Nothing was written.', $change->id->toString(), $verb)
+                : sprintf('%s %s (secret: changed, no fingerprint). Running workers pick it up within the version TTL.', $change->id->toString(), $verb);
+        }
+
         if ($change->dryRun) {
             return sprintf(
                 'Dry run: %s would be %s%s. Nothing was written.',

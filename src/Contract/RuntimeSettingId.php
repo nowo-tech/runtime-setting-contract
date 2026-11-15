@@ -64,6 +64,11 @@ final readonly class RuntimeSettingId implements Stringable
 
         [$namespace, $key] = explode('.', $id, 2);
 
+        // One spelling per id: environment variable names are written bare, never as "env.NAME" (audit QS-I-3).
+        if ($namespace === self::ENV_NAMESPACE) {
+            throw InvalidRuntimeSettingId::malformed();
+        }
+
         return self::of($namespace, $key);
     }
 

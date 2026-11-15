@@ -78,17 +78,17 @@ final class PdoRuntimeSettingStore implements RuntimeValueSourceInterface, Runti
 
     public function set(RuntimeSettingDefinition $definition, string $value, RuntimeSettingWriteContext $context): RuntimeSettingChange
     {
-        return $this->write($definition->id, RuntimeSettingAction::Set, $value, null, $context);
+        return $this->write($definition, RuntimeSettingAction::Set, $value, null, $context);
     }
 
     public function unset(RuntimeSettingDefinition $definition, RuntimeSettingWriteContext $context): RuntimeSettingChange
     {
-        return $this->write($definition->id, RuntimeSettingAction::Unset, null, null, $context);
+        return $this->write($definition, RuntimeSettingAction::Unset, null, null, $context);
     }
 
     public function rotate(RuntimeSettingDefinition $definition, string $value, DateTimeImmutable $previousExpiresAt, RuntimeSettingWriteContext $context): RuntimeSettingChange
     {
-        return $this->write($definition->id, RuntimeSettingAction::Rotate, $value, $previousExpiresAt, $context);
+        return $this->write($definition, RuntimeSettingAction::Rotate, $value, $previousExpiresAt, $context);
     }
 
     public function auditCount(): int
@@ -98,8 +98,9 @@ final class PdoRuntimeSettingStore implements RuntimeValueSourceInterface, Runti
         return $statement === false ? 0 : (int) $statement->fetchColumn();
     }
 
-    private function write(RuntimeSettingId $id, RuntimeSettingAction $action, ?string $value, ?DateTimeImmutable $keepUntil, RuntimeSettingWriteContext $context): RuntimeSettingChange
+    private function write(RuntimeSettingDefinition $definition, RuntimeSettingAction $action, ?string $value, ?DateTimeImmutable $keepUntil, RuntimeSettingWriteContext $context): RuntimeSettingChange
     {
+        $id  = $definition->id;
         $pdo = $this->connection();
         if ($pdo->inTransaction()) {
             throw RuntimeSettingNotWritable::insideTransaction();
@@ -108,8 +109,8 @@ final class PdoRuntimeSettingStore implements RuntimeValueSourceInterface, Runti
         $pdo->beginTransaction();
         try {
             $old   = $this->read($id);
-            $oldFp = $old instanceof StoredRuntimeValue ? $context->fingerprinter->fingerprint($id, $old->current) : null;
-            $newFp = $value === null ? null : $context->fingerprinter->fingerprint($id, $value);
+            $oldFp = $context->fingerprint($definition, $old?->current);
+            $newFp = $context->fingerprint($definition, $value);
 
             $pdo->prepare('DELETE FROM rs_values WHERE ns = ? AND k = ?')->execute([$id->namespace, $id->key]);
             if ($value !== null) {
@@ -118,10 +119,8 @@ final class PdoRuntimeSettingStore implements RuntimeValueSourceInterface, Runti
                     ->execute([$id->namespace, $id->key, $value, $previous, $previous === null ? null : $keepUntil->getTimestamp()]);
             }
 
-            $max     = $pdo->query('SELECT COALESCE(MAX(counter), 0) FROM rs_versions');
-            $counter = ($max === false ? 0 : (int) $max->fetchColumn()) + 1;
-            $token   = $counter . '-' . bin2hex(random_bytes(8));
-            $pdo->prepare('INSERT OR REPLACE INTO rs_versions (ns, counter, token) VALUES (?, ?, ?)')->execute([$id->namespace, $counter, $token]);
+            $token = $this->bump($id->namespace);
+            $pdo->prepare('UPDATE rs_values SET prev = NULL, prev_expires = NULL WHERE ns = ? AND prev_expires <= ?')->execute([$id->namespace, time()]);
             $pdo->prepare('INSERT INTO rs_audit (actor, setting, action, old_fp, new_fp) VALUES (?, ?, ?, ?, ?)')
                 ->execute([$context->actor, $id->toString(), $action->value, $oldFp, $newFp]);
 
@@ -136,5 +135,45 @@ final class PdoRuntimeSettingStore implements RuntimeValueSourceInterface, Runti
         }
 
         return new RuntimeSettingChange($id, $action, $oldFp, $newFp, $token);
+    }
+
+    public function purgeExpired(DateTimeImmutable $now): int
+    {
+        $pdo = $this->connection();
+        if ($pdo->inTransaction()) {
+            throw RuntimeSettingNotWritable::insideTransaction();
+        }
+
+        $pdo->beginTransaction();
+        try {
+            $select = $pdo->prepare('SELECT DISTINCT ns FROM rs_values WHERE prev_expires IS NOT NULL AND prev_expires <= ?');
+            $select->execute([$now->getTimestamp()]);
+            $namespaces = $select->fetchAll(PDO::FETCH_COLUMN);
+            $update     = $pdo->prepare('UPDATE rs_values SET prev = NULL, prev_expires = NULL WHERE prev_expires IS NOT NULL AND prev_expires <= ?');
+            $update->execute([$now->getTimestamp()]);
+            foreach ($namespaces as $namespace) {
+                if (is_string($namespace)) {
+                    $this->bump($namespace);
+                }
+            }
+            $pdo->commit();
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+
+            throw $e;
+        }
+
+        return $update->rowCount();
+    }
+
+    private function bump(string $namespace): string
+    {
+        $pdo     = $this->connection();
+        $max     = $pdo->query('SELECT COALESCE(MAX(counter), 0) FROM rs_versions');
+        $counter = ($max === false ? 0 : (int) $max->fetchColumn()) + 1;
+        $token   = $counter . '-' . bin2hex(random_bytes(8));
+        $pdo->prepare('INSERT OR REPLACE INTO rs_versions (ns, counter, token) VALUES (?, ?, ?)')->execute([$namespace, $counter, $token]);
+
+        return $token;
     }
 }

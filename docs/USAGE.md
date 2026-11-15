@@ -61,11 +61,12 @@ Enable the commands (`nowo_runtime_setting.command.enabled: true`), then:
 
 ```bash
 bin/console nowo:runtime-setting:list [--namespace=chat]
-bin/console nowo:runtime-setting:get chat.retention_days            # secrets masked, with their fingerprint
+bin/console nowo:runtime-setting:get chat.retention_days            # secrets masked, no fingerprint
 bin/console nowo:runtime-setting:set chat.retention_days 45 [--dry-run]
 printf '%s' "$NEW_TOKEN" | bin/console nowo:runtime-setting:set API_TOKEN --stdin
 bin/console nowo:runtime-setting:unset chat.retention_days         # back to the configured (env) value
 printf '%s' "$NEW_TOKEN" | bin/console nowo:runtime-setting:rotate API_TOKEN --stdin --keep-previous=PT1H
+bin/console nowo:runtime-setting:purge                              # expired previous values, at rest
 ```
 
 Rules (all enforced by `RuntimeSettingUpdater`, shared with any admin UI):
@@ -77,9 +78,15 @@ Rules (all enforced by `RuntimeSettingUpdater`, shared with any admin UI):
 - Secrets are never accepted as an argument (shell history, `ps`): `--stdin` is mandatory and nothing echoes them. One
   trailing newline is dropped. Prefer `printf '%s'` over an interactive terminal.
 - Every change is audited by the writer with the actor `cli:<os user>`, the id and the old and new fingerprints, never
-  the value. `SettingChangedEvent` (ids only) is dispatched after commit.
+  the value. For a **secret** no fingerprint exists anywhere (audit entries, command output, dry runs, the updater's
+  result): only the fact that it changed is recorded, because a fingerprint lets anyone allowed to write the secret
+  confirm guesses. `SettingChangedEvent` (ids only) is dispatched after commit.
 - `--dry-run` validates and prints what would change.
-- `rotate --keep-previous` takes an ISO-8601 duration from `PT0S` to `P30D` (default `PT1H`).
+- `rotate --keep-previous` takes an ISO-8601 duration from `PT0S` to `P30D` (default `PT1H`). A previous value is
+  never accepted after its expiry. It is deleted at rest by the next write in its namespace, and by
+  `nowo:runtime-setting:purge` (`RuntimeSettingUpdater::purgeExpired()`): schedule it (cron, Scheduler, a message)
+  at least as often as your shortest rotation window.
+- STDIN is bounded: input longer than the limit is refused, never cut.
 
 Running workers pick the change up within `version_ttl` (with a shared pool) or on their next request (without one),
 with no restart.
@@ -129,6 +136,11 @@ $resolver->clearRuntimeCache();
 
 Nothing in `src/Contract` imports Symfony or Doctrine; CI runs it with `composer install --no-dev`.
 
+A long-running loop that is not an HTTP request, a console command or a Messenger message (a daemon command with
+`while (true)`, a ReactPHP / Swoole loop) must call `clearRuntimeCache()` once per iteration: the resolver keeps one
+value per unit of work, and nothing else ends that unit. The memo holds at most 1,024 settings; a unit of work that
+reads more is flushed midway and may see two values of one setting.
+
 ## Writing a source and writer
 
 Follow the docblocks of `RuntimeValueSourceInterface` and `RuntimeSettingWriterInterface`. The essentials:
@@ -137,7 +149,15 @@ Follow the docblocks of `RuntimeValueSourceInterface` and `RuntimeSettingWriterI
   combine a counter with a random part. Write it in the same transaction as the value.
 - One transaction per write, opened and committed by the writer; refuse to run inside a caller's transaction
   (`RuntimeSettingNotWritable::insideTransaction()`).
-- Encrypt secrets at rest; audit with fingerprints, never values; do not dispatch events (the updater does).
+- `read()` must never return data older than the token `namespaceVersion()` returned just before: read from the
+  database on every call (no ORM identity map kept across requests: DBAL / SQL, or refresh the entity), and read the
+  token and the value from the same node (no token from the primary and value from a lagging replica). Otherwise a
+  stale value is cached under the new token and served to every worker.
+- Store namespace and key verbatim; never derive one id form from the other (`chat.retention_days` and
+  `CHAT_RETENTION_DAYS` are two settings).
+- Encrypt secrets at rest; audit with `RuntimeSettingWriteContext::fingerprint()` (null for secrets: record only that
+  the secret changed), never values; do not dispatch events (the updater does).
+- Purge expired previous values on every write (at least in the written namespace) and in `purgeExpired()`.
 - Compare ids byte for byte (binary / NO PAD collation on MySQL, and `===` on fetched rows).
 - `InMemoryRuntimeSettingStore` is a complete reference implementation; `tests/Support/PdoRuntimeSettingStore.php`
   shows the transactional version over PDO.

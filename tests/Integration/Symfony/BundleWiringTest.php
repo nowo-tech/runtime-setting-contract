@@ -33,7 +33,7 @@ final class BundleWiringTest extends TestCase
     {
         $application = new Application($this->kernel($this->newDatabase()));
 
-        foreach (['get', 'set', 'unset', 'list', 'rotate'] as $name) {
+        foreach (['get', 'set', 'unset', 'list', 'rotate', 'purge'] as $name) {
             self::assertTrue($application->has('nowo:runtime-setting:' . $name), $name);
         }
     }

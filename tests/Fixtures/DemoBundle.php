@@ -6,6 +6,7 @@ namespace Nowo\RuntimeSettingContract\Tests\Fixtures;
 
 use Nowo\RuntimeSettingContract\Bridge\Symfony\DependencyInjection\RuntimeSettingsConfiguration;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingType;
+use Nowo\RuntimeSettingContract\Contract\Validator\SingleLineString;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
 use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
@@ -41,11 +42,13 @@ final class DemoBundle extends AbstractBundle
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
-        $container->services()->set(DemoLimitValidator::class);
+        $services = $container->services();
+        $services->set(DemoLimitValidator::class);
+        $services->set('demo.validator.single_line', SingleLineString::class)->args([256]);
 
-        RuntimeSettingsConfiguration::registerDefinition($builder, 'demo.runtime_setting.greeting', $config['runtime']['greeting'], RuntimeSettingType::String, $config['greeting']);
-        RuntimeSettingsConfiguration::registerDefinition($builder, 'demo.runtime_setting.token', $config['runtime']['token'], RuntimeSettingType::String, $config['token'], secret: true);
+        RuntimeSettingsConfiguration::registerDefinition($builder, 'demo.runtime_setting.greeting', $config['runtime']['greeting'], RuntimeSettingType::String, $config['greeting'], validatorServiceId: 'demo.validator.single_line');
+        RuntimeSettingsConfiguration::registerDefinition($builder, 'demo.runtime_setting.token', $config['runtime']['token'], RuntimeSettingType::String, $config['token'], secret: true, validatorServiceId: 'demo.validator.single_line');
         RuntimeSettingsConfiguration::registerDefinition($builder, 'demo.runtime_setting.limit', $config['runtime']['limit'], RuntimeSettingType::Int, $config['limit'], validatorServiceId: DemoLimitValidator::class, default: 10, required: true);
-        RuntimeSettingsConfiguration::registerDefinition($builder, 'demo.runtime_setting.mode', $config['runtime']['mode'], RuntimeSettingType::String, $config['mode']);
+        RuntimeSettingsConfiguration::registerDefinition($builder, 'demo.runtime_setting.mode', $config['runtime']['mode'], RuntimeSettingType::String, $config['mode'], validatorServiceId: 'demo.validator.single_line');
     }
 }
