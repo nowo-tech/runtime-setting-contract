@@ -1,0 +1,174 @@
+# CI: PHP 8.2–8.5 × Symfony 7.4 / 8.1 (minimum minors per REQ-SF-002) for the bridge; the contract runs without Symfony.
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+
+permissions:
+  contents: read
+
+jobs:
+  git-hygiene:
+    name: Git history (no AI co-author)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Check for co-author trailers (REQ-GIT-001)
+        run: |
+          chmod +x .scripts/check-no-cursor-coauthor.sh .scripts/check-no-claude-coauthor.sh
+          ./.scripts/check-no-cursor-coauthor.sh HEAD
+          ./.scripts/check-no-claude-coauthor.sh HEAD
+
+  test:
+    name: PHP ${{ matrix.php }} - Symfony ${{ matrix.symfony }}
+    runs-on: ubuntu-latest
+
+    strategy:
+      fail-fast: false
+      matrix:
+        php: ['8.2', '8.3', '8.4', '8.5']
+        # Symfony 8.0 reached end of maintenance (July 2026): its CI cell is dropped (REQ-SF-002); composer.json still allows ^8.0.
+        symfony: ['7.4', '8.1']
+        exclude:
+          - php: '8.2'
+            symfony: '8.1'
+          - php: '8.3'
+            symfony: '8.1'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: ${{ matrix.php }}
+          extensions: pdo_sqlite, posix
+          coverage: ${{ matrix.php == '8.2' && matrix.symfony == '7.4' && 'pcov' || 'none' }}
+          tools: composer:v2
+
+      - name: Validate composer.json
+        run: composer validate --strict
+
+      - name: Override Composer platform PHP (composer.json pins the minimum PHP for resolution)
+        run: composer config platform.php "${{ matrix.php }}.99"
+
+      - name: Install dependencies with Symfony ${{ matrix.symfony }}
+        run: |
+          composer require --dev --no-update --no-interaction \
+            symfony/cache:^${{ matrix.symfony }} \
+            symfony/config:^${{ matrix.symfony }} \
+            symfony/console:^${{ matrix.symfony }} \
+            symfony/dependency-injection:^${{ matrix.symfony }} \
+            symfony/event-dispatcher:^${{ matrix.symfony }} \
+            symfony/framework-bundle:^${{ matrix.symfony }} \
+            symfony/http-kernel:^${{ matrix.symfony }} \
+            symfony/messenger:^${{ matrix.symfony }} \
+            symfony/process:^${{ matrix.symfony }}
+          composer update --no-interaction --prefer-dist --no-progress
+
+      - name: Composer audit
+        run: composer audit --abandoned=ignore
+
+      - name: Run tests
+        if: matrix.php != '8.2' || matrix.symfony != '7.4'
+        run: vendor/bin/phpunit --no-coverage
+
+      - name: Run tests with coverage (100% lines and methods required)
+        if: matrix.php == '8.2' && matrix.symfony == '7.4'
+        run: |
+          vendor/bin/phpunit --coverage-text --coverage-clover coverage.xml
+          chmod +x .scripts/coverage-check.sh
+          ./.scripts/coverage-check.sh coverage.xml 100
+          php -r '$m = simplexml_load_file("coverage.xml")->project->metrics; $s = (int) $m["statements"]; $cs = (int) $m["coveredstatements"]; $me = (int) $m["methods"]; $cm = (int) $m["coveredmethods"]; echo "lines $cs/$s, methods $cm/$me\n"; exit($s > 0 && $cs === $s && $cm === $me ? 0 : 1);'
+
+  contract-only:
+    name: Contract without Symfony
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install runtime dependencies only
+        run: composer update --no-dev --prefer-dist --no-progress --no-interaction
+
+      - name: Run the contract with PHP and PSR interfaces only
+        run: php tests/Standalone/contract-without-symfony.php
+
+  phpstan:
+    name: PHPStan
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-progress --no-interaction
+
+      - name: PHPStan (level max, fails on any finding)
+        run: composer phpstan
+
+  cs-check:
+    name: Code style
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-progress --no-interaction
+
+      - name: Check code style
+        run: composer cs-check
+
+      - name: Rector (no pending changes)
+        run: composer rector-dry
+
+  igor:
+    name: Igor (FrankenPHP worker audit)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v7
+
+      - name: Setup PHP
+        uses: shivammathur/setup-php@v2
+        with:
+          php-version: '8.2'
+          coverage: none
+          tools: composer:v2
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install dependencies
+        run: composer update --prefer-dist --no-progress --no-interaction
+
+      - name: Igor worker-state audit (REQ-CS-008)
+        run: composer igor
