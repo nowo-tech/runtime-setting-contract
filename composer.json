@@ -1,0 +1,144 @@
+{
+    "name": "nowo-tech/runtime-setting-contract",
+    "description": "Runtime setting port: a bundle setting that lives in .env can come from the database instead, change live through a console command and rotate without downtime. Framework-free contract, versioned cache, FrankenPHP worker safe, optional Symfony bridge.",
+    "type": "library",
+    "license": "MIT",
+    "keywords": [
+        "contracts",
+        "runtime-settings",
+        "configuration",
+        "env",
+        "secrets",
+        "rotation",
+        "port",
+        "hexagonal",
+        "ddd",
+        "symfony",
+        "frankenphp"
+    ],
+    "homepage": "https://github.com/nowo-tech/runtime-setting-contract",
+    "support": {
+        "issues": "https://github.com/nowo-tech/runtime-setting-contract/issues",
+        "source": "https://github.com/nowo-tech/runtime-setting-contract",
+        "docs": "https://github.com/nowo-tech/runtime-setting-contract/tree/main/docs",
+        "changelog": "https://github.com/nowo-tech/runtime-setting-contract/blob/main/docs/CHANGELOG.md"
+    },
+    "authors": [
+        {
+            "name": "Héctor Franco Aceituno",
+            "email": "hectorfranco@nowo.tech",
+            "homepage": "https://github.com/HecFranco",
+            "role": "Developer"
+        },
+        {
+            "name": "Nowo.tech",
+            "homepage": "https://nowo.tech"
+        }
+    ],
+    "require": {
+        "php": ">=8.2 <8.6",
+        "psr/clock": "^1.0",
+        "psr/event-dispatcher": "^1.0",
+        "psr/log": "^2.0 || ^3.0"
+    },
+    "require-dev": {
+        "friendsofphp/php-cs-fixer": "^3.64",
+        "igor-php/igor-php": "^0.10.0",
+        "nowo-tech/phpstan-frankenphp": "^1.0",
+        "phpstan/extension-installer": "^1.4",
+        "phpstan/phpstan": "^2.0",
+        "phpstan/phpstan-phpunit": "^2.0",
+        "phpunit/phpunit": "^11.0",
+        "psr/cache": "^2.0 || ^3.0",
+        "rector/rector": "^2.0",
+        "symfony/cache": "^7.4 || ^8.0",
+        "symfony/config": "^7.4 || ^8.0",
+        "symfony/console": "^7.4 || ^8.0",
+        "symfony/dependency-injection": "^7.4 || ^8.0",
+        "symfony/event-dispatcher": "^7.4 || ^8.0",
+        "symfony/framework-bundle": "^7.4 || ^8.0",
+        "symfony/http-kernel": "^7.4 || ^8.0",
+        "symfony/messenger": "^7.4 || ^8.0",
+        "symfony/process": "^7.4 || ^8.0"
+    },
+    "suggest": {
+        "symfony/http-kernel": "For the Symfony bridge (NowoRuntimeSettingBundle, boundary listener); ^7.4 || ^8.0",
+        "symfony/console": "For the nowo:runtime-setting:* commands; ^7.4 || ^8.0",
+        "psr/cache": "For Psr6RuntimeValueCache (shared cache of non-secret values)",
+        "symfony/messenger": "The boundary listener also clears the memo between Messenger messages",
+        "nowo-tech/runtime-env-bundle": "Database source and writer: one encrypted table keyed by environment variable name",
+        "nowo-tech/instance-settings-bundle": "Database source and writer in admin settings sections"
+    },
+    "conflict": {
+        "symfony/config": "<7.4",
+        "symfony/console": "<7.4",
+        "symfony/dependency-injection": "<7.4",
+        "symfony/http-kernel": "<7.4",
+        "symfony/messenger": "<7.4"
+    },
+    "autoload": {
+        "psr-4": {
+            "Nowo\\RuntimeSettingContract\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Nowo\\RuntimeSettingContract\\Tests\\": "tests/"
+        }
+    },
+    "archive": {
+        "exclude": [
+            "/tests",
+            "/.github",
+            "/.cursor",
+            "/.specify",
+            "/specs"
+        ]
+    },
+    "config": {
+        "sort-packages": true,
+        "allow-plugins": {
+            "phpstan/extension-installer": true
+        },
+        "platform": {
+            "php": "8.2.0"
+        }
+    },
+    "minimum-stability": "stable",
+    "prefer-stable": true,
+    "scripts": {
+        "test": "phpunit --colors=always",
+        "test-unit": "phpunit --testsuite=Unit --colors=always",
+        "test-integration": "phpunit --testsuite=Integration --colors=always",
+        "test-coverage": "phpunit --colors=always --coverage-clover coverage.xml --coverage-text",
+        "cs-check": "php-cs-fixer fix --dry-run --diff --config=.php-cs-fixer.dist.php",
+        "cs-fix": "php-cs-fixer fix --config=.php-cs-fixer.dist.php",
+        "rector": "rector process",
+        "rector-dry": "rector process --dry-run --no-progress-bar",
+        "phpstan": "phpstan analyse --memory-limit=512M --no-progress",
+        "igor": "igor-php --no-agent .",
+        "qa": [
+            "@cs-check",
+            "@phpstan",
+            "@test"
+        ]
+    },
+    "scripts-descriptions": {
+        "test": "Run PHPUnit tests",
+        "test-unit": "Run the unit tests",
+        "test-integration": "Run the kernel, two-process and DDD host tests",
+        "test-coverage": "Run PHPUnit with code coverage (clover + text)",
+        "cs-check": "Check code style with PHP-CS-Fixer",
+        "cs-fix": "Fix code style with PHP-CS-Fixer",
+        "rector": "Apply Rector",
+        "rector-dry": "Run Rector in dry-run mode",
+        "phpstan": "Run PHPStan (level max)",
+        "igor": "Run Igor FrankenPHP worker-state audit (REQ-CS-008)",
+        "qa": "cs-check + phpstan + test"
+    },
+    "extra": {
+        "branch-alias": {
+            "dev-main": "1.0.x-dev"
+        }
+    }
+}
