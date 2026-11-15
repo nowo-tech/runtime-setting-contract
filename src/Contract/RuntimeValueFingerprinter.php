@@ -20,8 +20,9 @@ use function substr;
  * `kernel.secret`) with the label {@see self::DOMAIN}, so these MACs never share a key with the host's other uses of that
  * secret (audit QS-L-3). Rotating the host secret changes every fingerprint.
  *
- * Fingerprints of secrets are never produced by the updater or recorded by writers (audit QS-M-1): use this class for
- * non-secret values only.
+ * This service is for non-secret values only. Fingerprints of secrets are never produced by the updater or recorded by
+ * writers (audit QS-M-1); writers go through {@see RuntimeSettingWriteContext::fingerprint()}, which returns null for
+ * secrets. Never call {@see fingerprint()} with a secret value.
  */
 final readonly class RuntimeValueFingerprinter
 {

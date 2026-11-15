@@ -22,7 +22,10 @@ use Nowo\RuntimeSettingContract\Contract\Exception\RuntimeSettingNotWritable;
  *   at rest.
  * - **Audit.** Record actor, id, action and the old and new fingerprints from
  *   {@see RuntimeSettingWriteContext::fingerprint()}, never the value. For a secret that method returns null: record
- *   only that the secret changed, never a fingerprint (audit QS-M-1). Return the same (null) fingerprints in the
+ *   only that the secret changed, never a fingerprint (audit QS-M-1). A writer that skips a write whose value equals
+ *   the stored one must still bump the version token and write the audit entry: otherwise the absence of a bump or an
+ *   entry tells a caller that its guess equals the stored value (an equality oracle, Delta QS-D-I). Return the same
+ *   (null) fingerprints in the
  *   {@see RuntimeSettingChange}. Record the entry once the write committed (or in the same transaction).
  * - **Rotation.** {@see rotate()} moves the current value to `previous` with the given expiry and stores the new one
  *   as current. {@see set()} and {@see unset()} drop any previous value.
@@ -30,6 +33,8 @@ use Nowo\RuntimeSettingContract\Contract\Exception\RuntimeSettingNotWritable;
  *   {@see purgeExpired()} deletes every expired previous value of the store. The updater calls it from
  *   `RuntimeSettingUpdater::purgeExpired()`, which the `nowo:runtime-setting:purge` command (or a host's scheduled
  *   task or message) runs. A previous value is never served after its expiry anyway; the purge removes it at rest.
+ *   Purge with a conditional UPDATE / DELETE on the expiry (`... WHERE previous_expires_at <= :now`), never by
+ *   reading rows and writing them back: a rotation committed meanwhile must not lose its new previous value.
  * - **Ids.** Store namespace and key verbatim and compare them exactly; never derive one id form from the other
  *   (`chat.retention_days` and `CHAT_RETENTION_DAYS` are two settings).
  * - **No events.** Do not dispatch {@see SettingChangedEvent}: the updater does, after the call returned.

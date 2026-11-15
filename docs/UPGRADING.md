@@ -6,7 +6,7 @@
 
 ## To 1.0.0
 
-First release; nothing to upgrade from.
+Released 2026-11-16. First release; nothing to upgrade from.
 
 For bundles adopting the pattern (moving a setting from `.env` to a runtime source):
 

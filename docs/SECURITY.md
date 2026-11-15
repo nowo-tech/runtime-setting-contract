@@ -130,15 +130,15 @@ Confirm before each tag:
 | No custom cryptography (HMAC from ext-hash only) | Required |
 | No public endpoints | N/A |
 | FrankenPHP worker (`reset_kernel: false`) audit | See [FRANKENPHP-WORKER-AUDIT.md](FRANKENPHP-WORKER-AUDIT.md) |
-| AI security audit (REQ-SEC-004) | Audited (QS, 2026-11-15, head `cfb2500`): 2 Medium and 5 Low fixed in PR #1; delta re-audit pending |
+| AI security audit (REQ-SEC-004) | Audited (QS + Delta QS, 2026-11-16, `1e53370`): taggable, no open High/Medium |
 
 ## AI security audit
 
 ### 2026-11-15 audit QS
 
 Static and dynamic audit of PR #1 at `cfb2500` (first release, no GHSA). Not taggable as audited; every finding below
-is fixed in the same PR, each with a regression test (`tests/Unit/Audit/AuditQsRegressionTest.php`). A delta
-re-audit of the fixes is pending.
+is fixed in the same PR, each with a regression test (`tests/Unit/Audit/AuditQsRegressionTest.php`). The Delta QS
+re-audit (2026-11-16, `1e53370`) found 1.0.0 taggable, with no open High or Medium finding.
 
 | ID | Severity | Finding | Fix |
 | --- | --- | --- | --- |

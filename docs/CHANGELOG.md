@@ -8,8 +8,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.0.0] - 2026-11-16](#100---2026-11-16)
 
 ## [Unreleased]
+
+## [1.0.0] - 2026-11-16
 
 ### Added
 
@@ -52,4 +55,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README and the base documents in `docs/` (REQ-DOCS-003), FrankenPHP worker audit, PSR evaluation, Spec Kit baseline
   (`specs/001-baseline`).
 
-[Unreleased]: https://github.com/nowo-tech/runtime-setting-contract/commits/main
+[Unreleased]: https://github.com/nowo-tech/runtime-setting-contract/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/nowo-tech/runtime-setting-contract/releases/tag/v1.0.0
