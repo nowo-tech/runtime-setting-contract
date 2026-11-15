@@ -53,11 +53,16 @@ Audit: `git ls-files src | wc -l` must equal the mapped count below.
 | --- | --- |
 | `src/InMemory/InMemoryRuntimeSettingStore.php` | FR-MEM-001 |
 
+## PSR-6 bridge
+
+| Source path | Requirement IDs |
+| --- | --- |
+| `src/Bridge/Psr6/Psr6RuntimeValueCache.php` | FR-SF-003 |
+
 ## Symfony bridge
 
 | Source path | Requirement IDs |
 | --- | --- |
-| `src/Bridge/Symfony/Cache/Psr6RuntimeValueCache.php` | FR-SF-003 |
 | `src/Bridge/Symfony/DependencyInjection/DefaultPortsPass.php` | FR-SF-005 |
 | `src/Bridge/Symfony/DependencyInjection/RuntimeSettingsConfiguration.php` | FR-SF-004 |
 | `src/Bridge/Symfony/EventListener/RuntimeSettingBoundaryListener.php` | FR-SF-002 |

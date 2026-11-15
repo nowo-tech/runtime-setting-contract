@@ -63,7 +63,8 @@ classes marked `@internal`.
 | `RuntimeSettingRegistry`, `RuntimeValueFingerprinter`, `RuntimeSettingWriteContext`, `RuntimeSettingChange`, `RuntimeSettingAction`, `StoredRuntimeValue`, `RuntimeValueCacheInterface`, `RuntimeValueCacheEntry`, `SettingChangedEvent`, `SystemClock` | Supporting types |
 | `Contract\Exception\*` | Failures; messages never contain values |
 | `InMemoryRuntimeSettingStore` | Reference store |
-| `NowoRuntimeSettingBundle`, `RuntimeSettingBoundaryListener`, `Psr6RuntimeValueCache`, `RuntimeSettingsConfiguration`, `DefaultPortsPass`, `UnconfiguredRuntimeSettingStore`, the five commands | Symfony bridge |
+| `Psr6RuntimeValueCache` | PSR-6 bridge (`psr/cache` only) |
+| `NowoRuntimeSettingBundle`, `RuntimeSettingBoundaryListener`, `RuntimeSettingsConfiguration`, `DefaultPortsPass`, `UnconfiguredRuntimeSettingStore`, the five commands | Symfony bridge |
 
 ## Validating the functional spec
 

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\RuntimeSettingContract\Tests\Integration;
 
-use Nowo\RuntimeSettingContract\Bridge\Symfony\Cache\Psr6RuntimeValueCache;
+use Nowo\RuntimeSettingContract\Bridge\Psr6\Psr6RuntimeValueCache;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingDefinition;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingRegistry;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingResolver;

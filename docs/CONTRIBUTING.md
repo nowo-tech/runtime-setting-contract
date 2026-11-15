@@ -15,6 +15,7 @@ Thanks for helping. This package is a contract first: small, framework-free, sta
 - `src/Contract`: ports, value objects, the resolver and the updater. PHP and PSR interfaces only: no Symfony, no
   Doctrine (CI runs it with `composer install --no-dev`).
 - `src/InMemory`: the reference store.
+- `src/Bridge/Psr6`: optional PSR-6 shared cache (`psr/cache` only).
 - `src/Bridge/Symfony`: optional Symfony glue.
 
 Database adapters live in the backend packages (RuntimeEnvBundle, InstanceSettingsBundle) or in the host.

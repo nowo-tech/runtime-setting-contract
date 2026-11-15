@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace Nowo\RuntimeSettingContract\Bridge\Symfony\Cache;
+namespace Nowo\RuntimeSettingContract\Bridge\Psr6;
 
 use DateTimeImmutable;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingId;

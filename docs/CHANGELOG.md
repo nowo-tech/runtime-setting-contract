@@ -29,9 +29,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   `SettingChangedEvent` after commit only).
 - **`InMemoryRuntimeSettingStore`**: reference source and writer (never-reused version tokens, rotation, purge of
   expired previous values, bounded audit trail without values).
+- **PSR-6 bridge** (`Bridge\Psr6`, optional, `psr/cache` only): `Psr6RuntimeValueCache`, the shared cache of
+  non-secret values keyed by version token, with strict entry validation.
 - **Symfony bridge** (`Bridge\Symfony`, optional, Symfony 7.4 and 8.x): `NowoRuntimeSettingBundle`,
   `RuntimeSettingBoundaryListener` (main `kernel.request`, `kernel.terminate`, `console.command`,
-  `console.terminate`, Messenger worker events, `kernel.reset`), `Psr6RuntimeValueCache`,
+  `console.terminate`, Messenger worker events, `kernel.reset`),
   `RuntimeSettingsConfiguration` (config tree helper for `runtime: { <setting>: { source, key, on_error } }` and
   definition registration), and the commands `nowo:runtime-setting:get|set|unset|list|rotate`, registered only with
   `command.enabled: true` (default false). Secrets only through `--stdin`, never echoed; audit actor `cli:<os user>`;

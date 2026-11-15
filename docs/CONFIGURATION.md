@@ -17,7 +17,7 @@
 nowo_runtime_setting:
     source: ~            # service id of a RuntimeValueSourceInterface (null: keep an existing alias)
     writer: ~            # service id of a RuntimeSettingWriterInterface (null: keep an existing alias)
-    cache_pool: ~        # optional PSR-6 pool id (e.g. cache.app) for NON-secret values
+    cache_pool: ~        # PSR-6 pool id (e.g. cache.app) for NON-secret values; recommended in production
     cache_lifetime: 3600 # seconds a cached value is kept (1..86400); a version change makes it unreachable earlier
     version_ttl: 5       # seconds a namespace version token is reused across requests (0..300; 0 = read every request)
     fingerprint_key: ~   # HMAC key (>= 16 bytes) for fingerprints in audit entries and command output; null = kernel.secret
@@ -28,7 +28,7 @@ nowo_runtime_setting:
 | Key | Default | Effect |
 |---|---|---|
 | `source` / `writer` | `null` | Aliases `RuntimeValueSourceInterface` / `RuntimeSettingWriterInterface`. An adapter bundle or the host may alias the interfaces directly instead; only when nothing does, the "unconfigured" store is bound (reads fail, writes are refused). |
-| `cache_pool` | `null` | Shares non-secret values between workers and hosts, keyed by version token. Secrets never go there. Without a pool every request reads each setting it uses from the source (the version token only gates the pool). |
+| `cache_pool` | `null` | Shares non-secret values between workers and hosts, keyed by version token. Secrets never go there. Without a pool every request reads each setting it uses from the source, one query per setting and request (the version token only gates the pool). **Recommended in production.** |
 | `version_ttl` | `5` | Upper bound for a change to reach a running worker when a pool is used. `0` reads the namespace version on every request (one cheap query per namespace). |
 | `fingerprint_key` | `kernel.secret` | Keyed fingerprints, so a low-entropy secret cannot be confirmed from an audit entry without the key. |
 | `command.enabled` | `false` | Turn on deliberately. When off, the commands are not registered at all. |

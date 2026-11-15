@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\RuntimeSettingContract\Bridge\Symfony;
 
-use Nowo\RuntimeSettingContract\Bridge\Symfony\Cache\Psr6RuntimeValueCache;
+use Nowo\RuntimeSettingContract\Bridge\Psr6\Psr6RuntimeValueCache;
 use Nowo\RuntimeSettingContract\Bridge\Symfony\Command\GetRuntimeSettingCommand;
 use Nowo\RuntimeSettingContract\Bridge\Symfony\Command\ListRuntimeSettingsCommand;
 use Nowo\RuntimeSettingContract\Bridge\Symfony\Command\RotateRuntimeSettingCommand;
