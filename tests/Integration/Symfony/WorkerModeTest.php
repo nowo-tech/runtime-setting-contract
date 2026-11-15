@@ -33,6 +33,8 @@ final class WorkerModeTest extends TestCase
         /** @var MutableClock $clock */
         $clock = $kernel->getContainer()->get('nowo_runtime_setting.clock');
 
+        self::assertFalse($kernel->getContainer()->has('services_resetter'), 'worker kept alive without a services resetter');
+
         $baseline = 0;
         for ($i = 1; $i <= self::REQUESTS; ++$i) {
             $value = $i % 2 === 0 ? 'even' : 'odd';

@@ -39,7 +39,7 @@ relied on alone.
 
 ## Proof
 
-- `tests/Integration/Symfony/WorkerModeTest.php`: one kernel with the services resetter replaced by a no-op, 2,000
+- `tests/Integration/Symfony/WorkerModeTest.php`: one kernel without the services resetter (and without the Messenger reset listener), 2,000
   requests alternating two values written by another kernel; every request serves the current value, memory growth
   after warm-up stays under 1 MiB.
 - `tests/Integration/Symfony/LiveChangeAcrossProcessesTest.php`: a second PHP process changes the value through the
