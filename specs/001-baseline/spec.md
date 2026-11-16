@@ -99,6 +99,12 @@ the kernel not reset, and with DDD hosts (the contract is framework-free).
 - **Version token** — per-namespace token that invalidates memos and shared cache entries (FR-RES-004, FR-RES-007).
 - **Audit entry** — writer-side record of a change with an actor and, for non-secret values only, a fingerprint (FR-WRT-001, FR-FP-001).
 
+## Assumptions
+
+- A backend package (RuntimeEnvBundle, InstanceSettingsBundle) or the host provides the database source and writer; this package ships only the in-memory reference store.
+- Hosts run one database node per source (or read-your-writes replicas): committed reads are never older than the version token (FR-SOURCE-001).
+- Secrets are encrypted by the writer adapter with a host key; the contract never sees plain secrets outside the resolver and the updater.
+
 ## Validation
 
 ```bash
