@@ -73,10 +73,10 @@ the kernel not reset, and with DDD hosts (the contract is framework-free).
 | FR-UPD-004 | Rotation windows are 0 s to 30 days. |
 | FR-UPD-006 | No fingerprint of a secret leaves the updater (dry run or write). `purgeExpired()` deletes expired previous values and resets the resolver. |
 | FR-UPD-005 | After every write (committed or not) the namespace is forgotten; `SettingChangedEvent` (ids only) only after the writer returned; a failing listener is logged. |
-| FR-SRC-001 | Source contract: never-reused version tokens bumped in the write transaction; committed reads never older than the token (no identity map, same node); plain strings; ids stored verbatim. |
+| FR-SOURCE-001 | Source contract: never-reused version tokens bumped in the write transaction; committed reads never older than the token (no identity map, same node); plain strings; ids stored verbatim. |
 | FR-WRT-001 | Writer contract: own transaction, refuse nested, encrypt secrets, audit with fingerprints (none for secrets), purge expired previous values on write and in `purgeExpired()`, no events. |
 | FR-FP-001 | Fingerprints (non-secret values only) are HMAC-SHA-256 over id and value, with a key derived from a host secret of at least 16 bytes and the label `nowo.runtime-setting.fingerprint.v1`. |
-| FR-MEM-001 | The in-memory store follows FR-SRC-001 / FR-WRT-001 with a bounded audit trail. |
+| FR-MEM-001 | The in-memory store follows FR-SOURCE-001 / FR-WRT-001 with a bounded audit trail. |
 | FR-SF-001 | Symfony bundle `nowo_runtime_setting`: source, writer, cache pool, cache lifetime, version TTL, fingerprint key, `command.enabled` (default false). |
 | FR-SF-002 | Boundary listener: main `kernel.request`, `kernel.terminate`, `console.command`, `console.terminate`, Messenger received / handled / failed; `ResetInterface`. |
 | FR-SF-003 | PSR-6 adapter validates entries strictly and matches the version token exactly. |
@@ -84,6 +84,32 @@ the kernel not reset, and with DDD hosts (the contract is framework-free).
 | FR-SF-005 | Ports default to the unconfigured store only when nothing else binds them. |
 | FR-CMD-001 | Commands get / set / unset / list / rotate / purge; secrets only via `--stdin`, never echoed, never fingerprinted; STDIN overflow refused; actor `cli:<os user>`; `--dry-run`; exit 1 on refusal. |
 | FR-ARCH-001 | `src/Contract` and `src/InMemory` import no Symfony or Doctrine. |
+
+## Success criteria
+
+- **SC-001**: **46/46** tracked `src/` files mapped in [`code-inventory.md`](code-inventory.md) (`git ls-files src | wc -l`).
+- **SC-002**: `composer qa` green: PHP-CS-Fixer, PHPStan level max with the FrankenPHP worker rulesets, Rector dry run, Igor, PHPUnit with 100% line and method coverage.
+- **SC-003**: `src/Contract` and `src/InMemory` install and pass their tests with `composer install --no-dev` (no Symfony, no Doctrine) (FR-ARCH-001).
+- **SC-004**: A kept-alive kernel serving many requests never returns a value older than the namespace version token allows (FR-RES-003 / FR-RES-004; see [`docs/FRANKENPHP-WORKER-AUDIT.md`](../../docs/FRANKENPHP-WORKER-AUDIT.md)).
+
+## Key entities
+
+- **Setting definition** — id, type, source, `on_error`, secret flag, validator, configured value, default, bounds (FR-DEF-001).
+- **Stored value** — current and previous value with a rotation window, read through the source port (FR-SOURCE-001, FR-RES-006).
+- **Version token** — per-namespace token that invalidates memos and shared cache entries (FR-RES-004, FR-RES-007).
+- **Audit entry** — writer-side record of a change with an actor and, for non-secret values only, a fingerprint (FR-WRT-001, FR-FP-001).
+
+## Assumptions
+
+- A backend package (RuntimeEnvBundle, InstanceSettingsBundle) or the host provides the database source and writer; this package ships only the in-memory reference store.
+- Hosts run one database node per source (or read-your-writes replicas): committed reads are never older than the version token (FR-SOURCE-001).
+- Secrets are encrypted by the writer adapter with a host key; the contract never sees plain secrets outside the resolver and the updater.
+
+## Validation
+
+```bash
+make release-check   # or, without Docker: composer qa
+```
 
 ## Scope
 

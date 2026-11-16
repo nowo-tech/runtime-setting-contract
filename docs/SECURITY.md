@@ -14,6 +14,7 @@
 - [Reporting](#reporting)
 - [Release security checklist (12.4.1)](#release-security-checklist-1241)
 - [AI security audit](#ai-security-audit)
+  - [2026-11-15 audit QS](#2026-11-15-audit-qs)
 
 ## Scope
 

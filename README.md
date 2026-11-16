@@ -20,8 +20,8 @@ memo cleared at every boundary, bounded state. See [FrankenPHP worker audit](doc
 
 - [Features](#features)
 - [Installation](#installation)
-- [Requirements](#requirements)
 - [Quick start](#quick-start)
+- [Requirements](#requirements)
 - [Configuration](#configuration)
 - [Console commands](#console-commands)
 - [Documentation](#documentation)
@@ -54,12 +54,6 @@ composer require nowo-tech/runtime-setting-contract
 Symfony hosts register `Nowo\RuntimeSettingContract\Bridge\Symfony\NowoRuntimeSettingBundle`. See
 [Installation](docs/INSTALLATION.md).
 
-## Requirements
-
-- PHP >= 8.2, < 8.6
-- `psr/clock`, `psr/log`, `psr/event-dispatcher` (interfaces)
-- Optional: Symfony 7.4 or 8.x for the bridge, `psr/cache` for the shared cache
-
 ## Quick start
 
 ```php
@@ -79,6 +73,12 @@ $retention = new RuntimeSettingDefinition(
 
 $days = $resolver->get($retention);         // stored value, else env, else default; validated
 ```
+
+## Requirements
+
+- PHP >= 8.2, < 8.6
+- `psr/clock`, `psr/log`, `psr/event-dispatcher` (interfaces)
+- Optional: Symfony 7.4 or 8.x for the bridge, `psr/cache` for the shared cache
 
 ## Configuration
 

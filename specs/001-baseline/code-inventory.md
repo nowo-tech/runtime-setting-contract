@@ -29,9 +29,9 @@ Audit: `git ls-files src | wc -l` must equal the mapped count below.
 | `src/Contract/RuntimeValueCacheEntry.php` | FR-RES-007 |
 | `src/Contract/RuntimeValueCacheInterface.php` | FR-RES-007 |
 | `src/Contract/RuntimeValueFingerprinter.php` | FR-FP-001 |
-| `src/Contract/RuntimeValueSourceInterface.php` | FR-SRC-001 |
+| `src/Contract/RuntimeValueSourceInterface.php` | FR-SOURCE-001 |
 | `src/Contract/SettingChangedEvent.php` | FR-UPD-005 |
-| `src/Contract/StoredRuntimeValue.php` | FR-SRC-001, FR-RES-006 |
+| `src/Contract/StoredRuntimeValue.php` | FR-SOURCE-001, FR-RES-006 |
 | `src/Contract/SystemClock.php` | FR-RES-004, FR-UPD-004 |
 
 ## Contract validators

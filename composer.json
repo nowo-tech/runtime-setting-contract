@@ -88,6 +88,7 @@
     },
     "archive": {
         "exclude": [
+            "/demo",
             "/tests",
             "/.github",
             "/.cursor",
