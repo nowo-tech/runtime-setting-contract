@@ -12,6 +12,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Documentation
+
+- `docs/CONTRIBUTING.md`: Code of Conduct, git hooks (REQ-GIT-001) and Cursor Agent (REQ-IDE-006) sections.
+- README: `## Requirements` follows `## Quick start` (REQ-DOCS-019); `docs/SECURITY.md` TOC lists the audit subsection.
+- Spec Kit baseline: success criteria, key entities and validation in `spec.md`; `FR-SRC-001` renamed `FR-SOURCE-001` (REQ-SPECKIT-003).
+
+### Changed (packaging)
+
+- `composer.json` `archive.exclude` also lists `/demo` (REQ-PKG-002).
+
 ## [1.0.0] - 2026-11-16
 
 ### Added
