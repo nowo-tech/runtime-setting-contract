@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Nowo\RuntimeSettingContract\Bridge\Symfony\EventListener;
 
+use IgorPhp\IgorBundle\Attribute\WorkerSafe;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingResolver;
 use Symfony\Component\Console\ConsoleEvents;
 use Symfony\Component\EventDispatcher\EventSubscriberInterface;
@@ -28,6 +29,8 @@ use Symfony\Contracts\Service\ResetInterface;
 final readonly class RuntimeSettingBoundaryListener implements EventSubscriberInterface, ResetInterface
 {
     public function __construct(
+        // @igor-ignore - Collaborator, not state: the resolver clears its own memo (clearRuntimeCache() at every boundary, reset() on kernel.reset); this listener keeps nothing.
+        #[WorkerSafe]
         private RuntimeSettingResolver $resolver,
     ) {
     }

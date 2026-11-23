@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed (packaging)
 
+- Igor 0.11: the `resolver` collaborator of `RuntimeSettingBoundaryListener` is marked `#[WorkerSafe]` with the reason (a documented false positive: the resolver clears its own memo). The existing line annotations did not silence this finding. No behaviour change.
 - `composer.json` `archive.exclude` also lists `/demo` (REQ-PKG-002).
 
 ## [1.0.0] - 2026-11-16
