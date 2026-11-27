@@ -24,7 +24,8 @@ use function strlen;
  * follow the same rules.
  *
  * 1. Only registered settings ({@see RuntimeSettingRegistry}); unknown ids are refused.
- * 2. `source: env` is refused: an environment value cannot change at runtime.
+ * 2. `source: env` is refused: an environment value cannot change at runtime. So is a setting read from a
+ *    provider (1.1, read-only by design).
  * 3. The new value is bounded, parsed by type and run through the bundle's validator before anything is written;
  *    the validated (possibly clamped) value is what gets stored.
  * 4. A dry run stops here and writes nothing.
@@ -69,6 +70,10 @@ final readonly class RuntimeSettingUpdater
         $definition = $this->registry->get($id);
         if (!$definition->isWritable()) {
             throw RuntimeSettingNotWritable::envSource($definition->idString());
+        }
+        // 1.1: providers are read-only; their settings change where the provider reads them.
+        if ($definition->provider !== null) {
+            throw RuntimeSettingNotWritable::readOnlyProvider($definition->idString(), $definition->provider);
         }
 
         return $definition;

@@ -43,7 +43,7 @@ final class ListRuntimeSettingsCommand extends Command
             fn (RuntimeSettingDefinition $definition): array => [
                 $definition->idString(),
                 $definition->type->value,
-                $definition->source->value,
+                $definition->source->value . ($definition->provider === null ? '' : ' via ' . $definition->provider),
                 $definition->onError->value,
                 $definition->secret ? 'yes' : 'no',
                 $this->display($definition),

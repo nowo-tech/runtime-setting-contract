@@ -17,6 +17,7 @@ between requests (no services resetter).
 | `RuntimeSettingResolver` | `memo` (values per id) | one request | `clearRuntimeCache()` at every boundary, `forgetNamespace()` after a write, `reset()` |
 | `RuntimeSettingResolver` | `requestVersions` (token per namespace) | one request | same |
 | `RuntimeSettingResolver` | `versions` (token + read time per namespace) | at most `version_ttl` seconds, by design | `forgetNamespace()`, `reset()` |
+| `RuntimeValueProviderRegistry` / `RuntimeValueProviderBinding` (1.1) | none (readonly, built once) | — | — |
 | `InMemoryRuntimeSettingStore` | values, versions, audit trail | object lifetime (it is a store) | never; the audit trail keeps the last 1,000 entries |
 | All other services | none (readonly) | — | — |
 
@@ -25,6 +26,10 @@ mutation, no `exit`, no sleeping, no locks or handles kept across calls (the com
 open).
 
 Secrets are only ever held in the per-request memo; they never reach the shared PSR-6 pool.
+
+Provider settings (1.1) add no state: their values live in the same per-request memo, and their shared-cache token is
+computed from the clock on every read (no token kept across requests). Providers themselves must be stateless; a
+provider that reads request-scoped data (tenant) must get it from a service reset at the boundary.
 
 ## Boundaries
 

@@ -1,9 +1,9 @@
 # Code inventory — 001-baseline
 
-**Last audited:** 2026-11-16  
+**Last audited:** 2026-11-27 (1.1 files map to [`002-value-providers`](../002-value-providers/spec.md))  
 **Package:** `nowo-tech/runtime-setting-contract`  
-**Production units:** 46 (every file tracked under `src/`)  
-**Mapped:** 46  
+**Production units:** 50 (every file tracked under `src/`)  
+**Mapped:** 50  
 **Unmapped:** 0
 
 Audit: `git ls-files src | wc -l` must equal the mapped count below.
@@ -29,6 +29,9 @@ Audit: `git ls-files src | wc -l` must equal the mapped count below.
 | `src/Contract/RuntimeValueCacheEntry.php` | FR-RES-007 |
 | `src/Contract/RuntimeValueCacheInterface.php` | FR-RES-007 |
 | `src/Contract/RuntimeValueFingerprinter.php` | FR-FP-001 |
+| `src/Contract/RuntimeValueProviderBinding.php` | FR-PROV-002 (002) |
+| `src/Contract/RuntimeValueProviderInterface.php` | FR-PROV-001 (002) |
+| `src/Contract/RuntimeValueProviderRegistry.php` | FR-PROV-002 (002) |
 | `src/Contract/RuntimeValueSourceInterface.php` | FR-SOURCE-001 |
 | `src/Contract/SettingChangedEvent.php` | FR-UPD-005 |
 | `src/Contract/StoredRuntimeValue.php` | FR-SOURCE-001, FR-RES-006 |
@@ -72,7 +75,8 @@ Audit: `git ls-files src | wc -l` must equal the mapped count below.
 | Source path | Requirement IDs |
 | --- | --- |
 | `src/Bridge/Symfony/DependencyInjection/DefaultPortsPass.php` | FR-SF-005 |
-| `src/Bridge/Symfony/DependencyInjection/RuntimeSettingsConfiguration.php` | FR-SF-004 |
+| `src/Bridge/Symfony/DependencyInjection/RuntimeSettingsConfiguration.php` | FR-SF-004, FR-PROV-007 (002) |
+| `src/Bridge/Symfony/DependencyInjection/RuntimeValueProvidersPass.php` | FR-PROV-007, FR-PROV-008 (002) |
 | `src/Bridge/Symfony/EventListener/RuntimeSettingBoundaryListener.php` | FR-SF-002 |
 | `src/Bridge/Symfony/NowoRuntimeSettingBundle.php` | FR-SF-001 |
 | `src/Bridge/Symfony/UnconfiguredRuntimeSettingStore.php` | FR-SF-005 |

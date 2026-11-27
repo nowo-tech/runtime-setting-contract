@@ -6,6 +6,7 @@ namespace Nowo\RuntimeSettingContract\Tests\Unit\Bridge\Symfony;
 
 use Nowo\RuntimeSettingContract\Bridge\Symfony\DependencyInjection\DefaultPortsPass;
 use Nowo\RuntimeSettingContract\Bridge\Symfony\DependencyInjection\RuntimeSettingsConfiguration;
+use Nowo\RuntimeSettingContract\Contract\Exception\RuntimeSettingConfigurationError;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingDefinition;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingErrorPolicy;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingSource;
@@ -99,6 +100,47 @@ final class RuntimeSettingsConfigurationTest extends TestCase
     }
 
     #[Test]
+    public function theProviderNodeIsAbsentUnlessSet(): void
+    {
+        $config = $this->process(['runtime' => ['days' => ['source' => 'db', 'provider' => 'tenant_settings']]]);
+
+        self::assertEquals(['source' => 'db', 'key' => 'chat.days', 'on_error' => 'fail_closed', 'provider' => 'tenant_settings'], $config['runtime']['days']);
+        self::assertArrayNotHasKey('provider', $config['runtime']['secret']);
+        self::assertSame('tenant_settings', $this->process([], ['key' => 'chat.days', 'provider' => 'tenant_settings'])['runtime']['days']['provider'] ?? 'missing');
+        self::assertSame('explicit-null', $this->process(['runtime' => ['days' => ['provider' => null]]])['runtime']['days']['provider'] ?? 'explicit-null');
+    }
+
+    #[Test]
+    public function refusesAnInvalidProviderName(): void
+    {
+        $this->expectException(InvalidConfigurationException::class);
+        $this->expectExceptionMessage('Invalid runtime value provider name');
+
+        $this->process(['runtime' => ['days' => ['source' => 'db', 'provider' => 'Tenant-Settings']]]);
+    }
+
+    #[Test]
+    public function registersTheProvider(): void
+    {
+        $container = new ContainerBuilder();
+
+        RuntimeSettingsConfiguration::registerDefinition($container, 'chat.runtime.days', ['source' => 'db', 'key' => 'chat.days', 'on_error' => 'fail_closed', 'provider' => 'tenant'], RuntimeSettingType::Int, null, validatorServiceId: 'v');
+        RuntimeSettingsConfiguration::registerDefinition($container, 'chat.runtime.mode', ['source' => 'db', 'key' => 'chat.mode', 'on_error' => 'fail_closed'], RuntimeSettingType::Int, null, validatorServiceId: 'v');
+
+        self::assertSame('tenant', $container->getDefinition('chat.runtime.days')->getArgument('$provider'));
+        self::assertNull($container->getDefinition('chat.runtime.mode')->getArgument('$provider'));
+    }
+
+    #[Test]
+    public function refusesAProviderWithSourceEnvAtBuild(): void
+    {
+        $this->expectException(RuntimeSettingConfigurationError::class);
+        $this->expectExceptionMessage('names provider "tenant" but uses "source: env"');
+
+        RuntimeSettingsConfiguration::registerDefinition(new ContainerBuilder(), 'chat.runtime.days', ['source' => 'env', 'key' => 'chat.days', 'on_error' => 'fail_closed', 'provider' => 'tenant'], RuntimeSettingType::Int, null, validatorServiceId: 'v');
+    }
+
+    #[Test]
     public function defaultPortsPassKeepsExistingBindings(): void
     {
         $container = new ContainerBuilder();
@@ -113,18 +155,19 @@ final class RuntimeSettingsConfigurationTest extends TestCase
 
     /**
      * @param array<string, mixed> $input
+     * @param array{key: string, provider?: string} $days
      *
-     * @return array{runtime: array<string, array{source: string, key: string, on_error: string}>}
+     * @return array{runtime: array<string, array{source: string, key: string, on_error: string, provider?: string|null}>}
      */
-    private function process(array $input): array
+    private function process(array $input, array $days = ['key' => 'chat.days']): array
     {
         $tree = new TreeBuilder('chat');
         RuntimeSettingsConfiguration::appendTo($tree->getRootNode(), [
-            'days'   => ['key' => 'chat.days'],
+            'days'   => $days,
             'secret' => ['key' => 'CHAT_SECRET', 'source' => 'db', 'on_error' => 'fallback'],
         ]);
 
-        /** @var array{runtime: array<string, array{source: string, key: string, on_error: string}>} $config */
+        /** @var array{runtime: array<string, array{source: string, key: string, on_error: string, provider?: string|null}>} $config */
         $config = (new Processor())->process($tree->buildTree(), [$input]);
 
         return $config;

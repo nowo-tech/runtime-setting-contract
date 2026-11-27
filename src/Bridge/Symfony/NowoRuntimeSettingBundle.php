@@ -13,12 +13,15 @@ use Nowo\RuntimeSettingContract\Bridge\Symfony\Command\SetRuntimeSettingCommand;
 use Nowo\RuntimeSettingContract\Bridge\Symfony\Command\UnsetRuntimeSettingCommand;
 use Nowo\RuntimeSettingContract\Bridge\Symfony\DependencyInjection\DefaultPortsPass;
 use Nowo\RuntimeSettingContract\Bridge\Symfony\DependencyInjection\RuntimeSettingsConfiguration;
+use Nowo\RuntimeSettingContract\Bridge\Symfony\DependencyInjection\RuntimeValueProvidersPass;
 use Nowo\RuntimeSettingContract\Bridge\Symfony\EventListener\RuntimeSettingBoundaryListener;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingRegistry;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingResolver;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingUpdater;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingWriterInterface;
 use Nowo\RuntimeSettingContract\Contract\RuntimeValueFingerprinter;
+use Nowo\RuntimeSettingContract\Contract\RuntimeValueProviderBinding;
+use Nowo\RuntimeSettingContract\Contract\RuntimeValueProviderRegistry;
 use Nowo\RuntimeSettingContract\Contract\RuntimeValueSourceInterface;
 use Nowo\RuntimeSettingContract\Contract\SystemClock;
 use Symfony\Component\Config\Definition\Configurator\DefinitionConfigurator;
@@ -26,6 +29,8 @@ use Symfony\Component\DependencyInjection\ContainerBuilder;
 use Symfony\Component\DependencyInjection\Loader\Configurator\ContainerConfigurator;
 use Symfony\Component\HttpKernel\Bundle\AbstractBundle;
 
+use function array_filter;
+use function array_keys;
 use function dirname;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\param;
 use function Symfony\Component\DependencyInjection\Loader\Configurator\service;
@@ -41,6 +46,10 @@ use function Symfony\Component\DependencyInjection\Loader\Configurator\tagged_it
  *     writer: App\Settings\DoctrineRuntimeSettingStore
  *     cache_pool: cache.app                               # optional PSR-6 pool for non-secret values
  *     version_ttl: 5                                      # seconds a version token is reused; 0 = read every request
+ *     providers:                                          # 1.1: read-only providers a setting can choose
+ *         tenant_settings: { service: App\Settings\TenantSettingsProvider, cache_ttl: 60 }
+ *     setting_providers:                                  # 1.1: bind any registered setting to a provider
+ *         chat.retention_days: tenant_settings
  *     command:
  *         enabled: false                                  # default; turn on deliberately
  * ```
@@ -86,6 +95,40 @@ final class NowoRuntimeSettingBundle extends AbstractBundle
                     ->info('Secret (>= 16 bytes) the HMAC key for fingerprints of non-secret values is derived from (domain-separated). Null: kernel.secret.')
                     ->defaultNull()
                 ->end()
+                ->arrayNode('providers')
+                    ->info('1.1: read-only runtime value providers (RuntimeValueProviderInterface services) a setting can choose with "provider: <name>". Adapter bundles also register providers with the nowo_runtime_setting.provider tag.')
+                    ->useAttributeAsKey('name')
+                    ->validate()
+                        ->ifTrue(static fn (array $providers): bool => array_filter(array_keys($providers), static fn (int|string $name): bool => !RuntimeValueProviderBinding::isValidName($name)) !== [])
+                        ->thenInvalid('Invalid runtime value provider name in %s: use lowercase letters, digits and underscores, starting with a letter (at most 64 bytes).')
+                    ->end()
+                    ->arrayPrototype()
+                        ->children()
+                            ->scalarNode('service')
+                                ->info('Service id of the RuntimeValueProviderInterface implementation.')
+                                ->isRequired()
+                                ->cannotBeEmpty()
+                            ->end()
+                            ->integerNode('cache_ttl')
+                                ->info('Seconds a non-secret value may be served from the shared cache (cache_pool); 0: never cached, read once per request. Secrets are never cached.')
+                                ->defaultValue(0)
+                                ->min(0)
+                                ->max(RuntimeValueProviderBinding::MAX_CACHE_TTL)
+                            ->end()
+                        ->end()
+                    ->end()
+                ->end()
+                ->arrayNode('setting_providers')
+                    ->info('1.1: setting id => provider name. Binds a setting any bundle registered (source db / db_then_env) to a provider; checked when the container is built.')
+                    ->useAttributeAsKey('id')
+                    ->normalizeKeys(false)
+                    ->scalarPrototype()
+                        ->validate()
+                            ->ifTrue(static fn (mixed $name): bool => !RuntimeValueProviderBinding::isValidName($name))
+                            ->thenInvalid('Invalid runtime value provider name %s.')
+                        ->end()
+                    ->end()
+                ->end()
                 ->arrayNode('command')
                     ->addDefaultsIfNotSet()
                     ->children()
@@ -101,10 +144,11 @@ final class NowoRuntimeSettingBundle extends AbstractBundle
     public function build(ContainerBuilder $container): void
     {
         $container->addCompilerPass(new DefaultPortsPass());
+        $container->addCompilerPass(new RuntimeValueProvidersPass());
     }
 
     /**
-     * @param array{source: ?string, writer: ?string, cache_pool: ?string, cache_lifetime: int, version_ttl: int, fingerprint_key: ?string, command: array{enabled: bool}} $config
+     * @param array{source: ?string, writer: ?string, cache_pool: ?string, cache_lifetime: int, version_ttl: int, fingerprint_key: ?string, providers: array<string, array{service: string, cache_ttl: int}>, setting_providers: array<string, string>, command: array{enabled: bool}} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {
@@ -136,6 +180,13 @@ final class NowoRuntimeSettingBundle extends AbstractBundle
             ->args([$config['fingerprint_key'] ?? param('kernel.secret')]);
         $services->alias(RuntimeValueFingerprinter::class, 'nowo_runtime_setting.fingerprinter');
 
+        // 1.1: filled by RuntimeValueProvidersPass from `providers` and the provider tag.
+        $builder->setParameter(RuntimeValueProvidersPass::CONFIGURED_PROVIDERS_PARAMETER, $config['providers']);
+        $builder->setParameter(RuntimeValueProvidersPass::SETTING_PROVIDERS_PARAMETER, $config['setting_providers']);
+        $services->set(RuntimeValueProvidersPass::REGISTRY_ID, RuntimeValueProviderRegistry::class)
+            ->args([[]]);
+        $services->alias(RuntimeValueProviderRegistry::class, RuntimeValueProvidersPass::REGISTRY_ID);
+
         $services->set('nowo_runtime_setting.resolver', RuntimeSettingResolver::class)
             ->args([
                 service(RuntimeValueSourceInterface::class),
@@ -143,6 +194,7 @@ final class NowoRuntimeSettingBundle extends AbstractBundle
                 service('nowo_runtime_setting.clock'),
                 $config['version_ttl'],
                 service('logger')->nullOnInvalid(),
+                service(RuntimeValueProvidersPass::REGISTRY_ID),
             ])
             ->tag('kernel.reset', ['method' => 'reset']);
         $services->alias(RuntimeSettingResolver::class, 'nowo_runtime_setting.resolver');

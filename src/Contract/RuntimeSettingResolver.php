@@ -14,6 +14,7 @@ use Psr\Log\NullLogger;
 use Throwable;
 
 use function count;
+use function intdiv;
 use function strlen;
 
 /**
@@ -30,6 +31,11 @@ use function strlen;
  *   token is never used. Secrets never leave this process's per-request memo.
  * - **Validation.** Every value, whatever its origin (stored, cached, configured, default), goes through the type
  *   and the bundle's validator before it is returned.
+ * - **Providers (1.1).** A setting with `provider: <name>` reads its value from that read-only
+ *   {@see RuntimeValueProviderInterface} instead of the source, with no namespace version: its shared-cache entries
+ *   live for the provider's cache TTL (a time bucket; 0: never cached, read once per request). Secrets stay in the
+ *   per-request memo only. A provider's exception is replaced by a {@see RuntimeSettingSourceFailure} without its
+ *   message or chain, and values longer than {@see RuntimeSettingType::MAX_LENGTH} are refused before parsing.
  * - **Failures.** When the source cannot be read, or holds a value the validator refuses, `on_error: fallback` logs a
  *   warning (the id only) and uses the configured value; `fail_closed` throws.
  *
@@ -67,6 +73,7 @@ final class RuntimeSettingResolver
         ?ClockInterface $clock = null,
         private readonly int $versionTtl = self::DEFAULT_VERSION_TTL,
         ?LoggerInterface $logger = null,
+        private readonly ?RuntimeValueProviderRegistry $providers = null,
     ) {
         if ($versionTtl < 0 || $versionTtl > self::MAX_VERSION_TTL) {
             throw RuntimeSettingConfigurationError::because('versionTtl must be between 0 and 300 seconds.');
@@ -80,6 +87,7 @@ final class RuntimeSettingResolver
      *
      * @throws RuntimeSettingUnavailable source failure under fail_closed, or a required setting without value
      * @throws InvalidRuntimeSettingValue stored value refused under fail_closed, or configured value refused
+     * @throws RuntimeSettingConfigurationError the setting names a provider that is not registered
      */
     public function get(RuntimeSettingDefinition $definition): string|int|float|bool|null
     {
@@ -92,6 +100,7 @@ final class RuntimeSettingResolver
      *
      * @throws RuntimeSettingUnavailable
      * @throws InvalidRuntimeSettingValue
+     * @throws RuntimeSettingConfigurationError
      *
      * @return list<bool|float|int|string>
      */
@@ -171,8 +180,11 @@ final class RuntimeSettingResolver
      */
     private function fromSource(RuntimeSettingDefinition $definition): array
     {
+        // A missing provider is a wiring error, never a "source down" that on_error: fallback would hide.
+        $binding = $definition->provider === null ? null : $this->binding($definition->provider);
+
         try {
-            $stored = $this->readStored($definition);
+            $stored = $binding instanceof RuntimeValueProviderBinding ? $this->readProvided($definition, $binding) : $this->readStored($definition);
         } catch (Throwable $e) {
             if ($definition->onError === RuntimeSettingErrorPolicy::FailClosed) {
                 throw RuntimeSettingUnavailable::sourceFailed($definition->idString(), $e);
@@ -239,6 +251,57 @@ final class RuntimeSettingResolver
         $cache?->set($definition->id, $version, $stored);
 
         return $stored;
+    }
+
+    private function binding(string $name): RuntimeValueProviderBinding
+    {
+        if (!$this->providers instanceof RuntimeValueProviderRegistry) {
+            throw RuntimeSettingConfigurationError::unknownProvider($name);
+        }
+
+        return $this->providers->get($name);
+    }
+
+    /**
+     * @throws Throwable any provider (sanitised) or cache failure
+     */
+    private function readProvided(RuntimeSettingDefinition $definition, RuntimeValueProviderBinding $binding): ?StoredRuntimeValue
+    {
+        // Secrets never go to the shared cache; a provider without TTL is read once per request.
+        $cache   = $definition->secret || $binding->cacheTtl === 0 ? null : $this->cache;
+        $version = $cache instanceof RuntimeValueCacheInterface ? $this->providerVersion($binding) : '';
+
+        $entry = $cache?->get($definition->id, $version);
+        if ($entry instanceof RuntimeValueCacheEntry) {
+            return $entry->value;
+        }
+
+        try {
+            $stored = $binding->provider->read($definition->id);
+        } catch (Throwable $e) {
+            // Its message or chain may quote SQL or a value: keep the class only.
+            throw RuntimeSettingSourceFailure::providerFailed($binding->name, $e::class);
+        }
+
+        // Bounded before anything parses or caches it.
+        if ($stored instanceof StoredRuntimeValue
+            && (strlen($stored->current) > RuntimeSettingType::MAX_LENGTH || strlen($stored->previous ?? '') > RuntimeSettingType::MAX_LENGTH)
+        ) {
+            throw RuntimeSettingSourceFailure::because('Runtime value provider "' . $binding->name . '" returned a value longer than ' . RuntimeSettingType::MAX_LENGTH . ' bytes.');
+        }
+
+        $cache?->set($definition->id, $version, $stored);
+
+        return $stored;
+    }
+
+    /**
+     * A provider has no version token: its cache entries are valid for one time bucket of `cacheTtl` seconds, the
+     * same bucket in every process. Changing the provider's name or TTL changes the token.
+     */
+    private function providerVersion(RuntimeValueProviderBinding $binding): string
+    {
+        return 'provider:' . $binding->name . ':' . $binding->cacheTtl . ':' . intdiv($this->clock->now()->getTimestamp(), $binding->cacheTtl);
     }
 
     private function version(string $namespace): string
