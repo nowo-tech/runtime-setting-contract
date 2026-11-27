@@ -8,9 +8,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## Table of contents
 
 - [[Unreleased]](#unreleased)
+- [[1.1.0] - 2026-11-27](#110---2026-11-27)
 - [[1.0.0] - 2026-11-16](#100---2026-11-16)
 
 ## [Unreleased]
+
+## [1.1.0] - 2026-11-27
 
 ### Added
 
@@ -45,6 +48,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - Igor 0.11: the `resolver` collaborator of `RuntimeSettingBoundaryListener` is marked `#[WorkerSafe]` with the reason (a documented false positive: the resolver clears its own memo). The existing line annotations did not silence this finding. No behaviour change.
 - `composer.json` `archive.exclude` also lists `/demo` (REQ-PKG-002).
+
+[1.1.0]: https://github.com/nowo-tech/runtime-setting-contract/releases/tag/v1.1.0
 
 ## [1.0.0] - 2026-11-16
 
@@ -89,5 +94,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - README and the base documents in `docs/` (REQ-DOCS-003), FrankenPHP worker audit, PSR evaluation, Spec Kit baseline
   (`specs/001-baseline`).
 
-[Unreleased]: https://github.com/nowo-tech/runtime-setting-contract/compare/v1.0.0...HEAD
+[Unreleased]: https://github.com/nowo-tech/runtime-setting-contract/compare/v1.1.0...HEAD
 [1.0.0]: https://github.com/nowo-tech/runtime-setting-contract/releases/tag/v1.0.0
