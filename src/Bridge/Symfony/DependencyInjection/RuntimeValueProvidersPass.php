@@ -13,6 +13,7 @@ use Symfony\Component\DependencyInjection\Definition;
 use Symfony\Component\DependencyInjection\Reference;
 
 use function array_diff;
+use function array_key_exists;
 use function array_keys;
 use function implode;
 use function is_array;
@@ -39,6 +40,11 @@ final class RuntimeValueProvidersPass implements CompilerPassInterface
     public const CONFIGURED_PROVIDERS_PARAMETER = 'nowo_runtime_setting.configured_providers';
 
     public const SETTING_PROVIDERS_PARAMETER = 'nowo_runtime_setting.setting_providers';
+
+    /** Positions of `source` and `provider` in RuntimeSettingDefinition's constructor. */
+    private const SOURCE_POSITION = 2;
+
+    private const PROVIDER_POSITION = 10;
 
     public function process(ContainerBuilder $container): void
     {
@@ -104,16 +110,18 @@ final class RuntimeValueProvidersPass implements CompilerPassInterface
         foreach (array_keys($container->findTaggedServiceIds(RuntimeSettingsConfiguration::DEFINITION_TAG)) as $serviceId) {
             $definition = $container->getDefinition($serviceId);
             $arguments  = $definition->getArguments();
-            $id         = isset($arguments['$id']) ? $container->getParameterBag()->resolveValue($arguments['$id']) : null;
-            $provider   = $arguments['$provider'] ?? null;
-            $mapped     = is_string($id) && is_string($map[$id] ?? null) ? $map[$id] : null;
+            // Named (registerDefinition()) or positional (a host's own service definition) arguments.
+            $rawId    = $arguments['$id'] ?? $arguments[0] ?? null;
+            $id       = $rawId === null ? null : $container->getParameterBag()->resolveValue($rawId);
+            $provider = $arguments['$provider'] ?? $arguments[self::PROVIDER_POSITION] ?? null;
+            $mapped   = is_string($id) && is_string($map[$id] ?? null) ? $map[$id] : null;
 
             if (is_string($id) && $mapped !== null) {
                 if ($provider !== null && $provider !== $mapped) {
                     throw RuntimeSettingConfigurationError::because(sprintf('Runtime setting "%s" names provider "%s" in its bundle configuration and "%s" in nowo_runtime_setting.setting_providers: keep one.', $id, is_string($provider) ? $provider : '?', $mapped));
                 }
                 $provider = $mapped;
-                $definition->setArgument('$provider', $provider);
+                $definition->setArgument(array_key_exists(self::PROVIDER_POSITION, $arguments) ? self::PROVIDER_POSITION : '$provider', $provider);
                 $bound[] = $id;
             }
 
@@ -122,7 +130,7 @@ final class RuntimeValueProvidersPass implements CompilerPassInterface
             }
             $label = is_string($id) ? $id : $serviceId;
             $name  = is_string($provider) ? $provider : '?';
-            if (($arguments['$source'] ?? RuntimeSettingSource::Env) === RuntimeSettingSource::Env) {
+            if (($arguments['$source'] ?? $arguments[self::SOURCE_POSITION] ?? RuntimeSettingSource::Env) === RuntimeSettingSource::Env) {
                 throw RuntimeSettingConfigurationError::because(sprintf('Runtime setting "%s" is bound to provider "%s" but uses "source: env", which reads no provider. Use "source: db" or "db_then_env".', $label, $name));
             }
             if (!isset($providers[$name])) {

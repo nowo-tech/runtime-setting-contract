@@ -7,6 +7,8 @@ namespace Nowo\RuntimeSettingContract\Tests\Unit\Bridge\Symfony;
 use Nowo\RuntimeSettingContract\Bridge\Symfony\DependencyInjection\RuntimeSettingsConfiguration;
 use Nowo\RuntimeSettingContract\Bridge\Symfony\DependencyInjection\RuntimeValueProvidersPass;
 use Nowo\RuntimeSettingContract\Contract\Exception\RuntimeSettingConfigurationError;
+use Nowo\RuntimeSettingContract\Contract\RuntimeSettingDefinition;
+use Nowo\RuntimeSettingContract\Contract\RuntimeSettingErrorPolicy;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingSource;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingType;
 use Nowo\RuntimeSettingContract\Contract\RuntimeValueProviderBinding;
@@ -136,6 +138,37 @@ final class RuntimeValueProvidersPassTest extends TestCase
 
         self::assertSame('tenant', $container->getDefinition('chat.runtime.days')->getArgument('$provider'));
         self::assertNull($container->getDefinition('chat.runtime.other')->getArgument('$provider'));
+    }
+
+    #[Test]
+    public function bindsPositionalDefinitionsToo(): void
+    {
+        $container = $this->container(configured: ['tenant' => ['service' => 'a', 'cache_ttl' => 0]], map: ['chat.days' => 'tenant', 'chat.full' => 'tenant']);
+        $container->register('host.days', RuntimeSettingDefinition::class)
+            ->setArguments(['chat.days', RuntimeSettingType::Int, RuntimeSettingSource::Db])
+            ->addTag(RuntimeSettingsConfiguration::DEFINITION_TAG);
+        $container->register('host.full', RuntimeSettingDefinition::class)
+            ->setArguments(['chat.full', RuntimeSettingType::Int, RuntimeSettingSource::Db, RuntimeSettingErrorPolicy::FailClosed, false, null, null, null, false, null, null])
+            ->addTag(RuntimeSettingsConfiguration::DEFINITION_TAG);
+
+        (new RuntimeValueProvidersPass())->process($container);
+
+        self::assertSame('tenant', $container->getDefinition('host.days')->getArgument('$provider'));
+        self::assertSame('tenant', $container->getDefinition('host.full')->getArgument(10));
+    }
+
+    #[Test]
+    public function refusesAPositionalEnvDefinitionBoundToAProvider(): void
+    {
+        $container = $this->container(configured: ['tenant' => ['service' => 'a', 'cache_ttl' => 0]], map: ['chat.days' => 'tenant']);
+        $container->register('host.days', RuntimeSettingDefinition::class)
+            ->setArguments(['chat.days', RuntimeSettingType::Int, RuntimeSettingSource::Env])
+            ->addTag(RuntimeSettingsConfiguration::DEFINITION_TAG);
+
+        $this->expectException(RuntimeSettingConfigurationError::class);
+        $this->expectExceptionMessage('uses "source: env"');
+
+        (new RuntimeValueProvidersPass())->process($container);
     }
 
     #[Test]
