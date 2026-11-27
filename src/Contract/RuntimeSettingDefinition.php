@@ -40,11 +40,14 @@ final readonly class RuntimeSettingDefinition
      * @param mixed $configured the configured (env) value; null when none
      * @param mixed $default the bundle's documented default, used when nothing else gives a value
      * @param (callable(bool|float|int|string): (bool|float|int|string))|RuntimeSettingValidatorInterface|null $validator
+     * @param string|null $provider 1.1: name of the read-only {@see RuntimeValueProviderInterface} that holds the value
+     *                              (source db / db_then_env only); null: the default source
      *
      * @throws RuntimeSettingConfigurationError when the configured value or the default does not fit the type, or when a
      *                                          setting that can be written (source db / db_then_env) has no validator:
      *                                          bound it (e.g. {@see IntRange}, {@see SingleLineString}) or opt out
-     *                                          explicitly with {@see Unbounded}
+     *                                          explicitly with {@see Unbounded}; or when the provider name is
+     *                                          malformed or combined with `source: env`
      */
     public function __construct(
         RuntimeSettingId|string $id,
@@ -57,6 +60,7 @@ final readonly class RuntimeSettingDefinition
         mixed $default = null,
         public bool $required = false,
         ?int $maxLength = null,
+        public ?string $provider = null,
     ) {
         $this->id = is_string($id) ? RuntimeSettingId::fromString($id) : $id;
 
@@ -75,6 +79,15 @@ final readonly class RuntimeSettingDefinition
         // needs a validator, or the explicit Unbounded opt-out.
         if (!$this->validator instanceof Closure && $this->source !== RuntimeSettingSource::Env) {
             throw RuntimeSettingConfigurationError::because('Runtime setting "' . $this->id->toString() . '" can be written at runtime (source: ' . $this->source->value . ') but has no validator. Bound it (IntRange, SingleLineString, your own validator) or declare it Unbounded explicitly.');
+        }
+
+        if ($provider !== null) {
+            if (!RuntimeValueProviderBinding::isValidName($provider)) {
+                throw RuntimeSettingConfigurationError::because('Runtime setting "' . $this->id->toString() . '" names an invalid provider: use lowercase letters, digits and underscores, starting with a letter (at most 64 bytes).');
+            }
+            if ($this->source === RuntimeSettingSource::Env) {
+                throw RuntimeSettingConfigurationError::because('Runtime setting "' . $this->id->toString() . '" names provider "' . $provider . '" but uses "source: env", which reads no provider. Use "source: db" or "db_then_env".');
+            }
         }
 
         $this->configured = $this->normalizeConfigured($configured, 'configured value');
@@ -96,9 +109,31 @@ final readonly class RuntimeSettingDefinition
         return $this->id->toString();
     }
 
+    /**
+     * Whether the source kind can hold values (`db`, `db_then_env`). Unchanged since 1.0: a setting bound to a
+     * read-only provider is still "writable" here, so that adapters which route writable settings through
+     * {@see RuntimeSettingUpdater} keep doing so and get {@see Exception\RuntimeSettingNotWritable} (fail closed).
+     * Use {@see isReadOnly()} to know whether a write can succeed.
+     */
     public function isWritable(): bool
     {
         return $this->source !== RuntimeSettingSource::Env;
+    }
+
+    /**
+     * 1.1: whether a write is refused whatever the writer: `source: env`, or a value read from a provider.
+     */
+    public function isReadOnly(): bool
+    {
+        return $this->source === RuntimeSettingSource::Env || $this->provider !== null;
+    }
+
+    /**
+     * 1.1: whether the value comes from a named read-only provider instead of the default source.
+     */
+    public function usesProvider(): bool
+    {
+        return $this->provider !== null;
     }
 
     /**

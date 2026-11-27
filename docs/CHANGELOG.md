@@ -12,6 +12,29 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+
+- **Read-only value providers** (owner request 2026-11-27, spec `specs/002-value-providers`): a setting can read its
+  value from a named provider instead of the default source.
+  - Contract (framework-free): `RuntimeValueProviderInterface`, `RuntimeValueProviderBinding` (name + shared-cache
+    TTL 0..3600 s), `RuntimeValueProviderRegistry`; `RuntimeSettingDefinition` gains an optional trailing
+    `provider` argument and property plus `usesProvider()` / `isReadOnly()`; `RuntimeSettingResolver` gains an optional
+    trailing `providers` argument; `RuntimeSettingNotWritable::readOnlyProvider()`,
+    `RuntimeSettingSourceFailure::providerFailed()`, `RuntimeSettingConfigurationError::unknownProvider()`.
+  - Resolver: provider settings never read the default source; per-request memo always; shared cache only for
+    non-secret values of providers with `cache_ttl` > 0, keyed by a time-bucket token that also carries a hash of
+    the binding's optional `cacheScope` (audit ZDA-L2: per-connection / per-deployment answers never share an entry); provider exceptions replaced by
+    a `RuntimeSettingSourceFailure` without message or chain; values over 65536 bytes refused before parsing; an
+    unregistered provider is a configuration error even under `on_error: fallback`.
+  - Updater, commands and adapters: `set` / `unset` / `rotate` / `prepare` (dry runs included) refuse provider
+    settings with `RuntimeSettingNotWritable`.
+  - Symfony bridge: `providers.<name>: { service, cache_ttl, cache_scope }`, `setting_providers: { <id>: <name> }`, the
+    `nowo_runtime_setting.provider` tag (`RuntimeSettingsConfiguration::PROVIDER_TAG`, attributes `name`, `cache_ttl`,
+    `cache_scope`), an optional `provider` key in
+    `RuntimeSettingsConfiguration::appendTo()` nodes (absent from the processed node unless set) and
+    `registerDefinition()`; `RuntimeValueProvidersPass` checks every binding when the container is built.
+    `nowo:runtime-setting:list` shows `db via <provider>`.
+
 ### Documentation
 
 - `docs/CONTRIBUTING.md`: Code of Conduct, git hooks (REQ-GIT-001) and Cursor Agent (REQ-IDE-006) sections.

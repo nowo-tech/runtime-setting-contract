@@ -18,6 +18,14 @@ final class RuntimeSettingNotWritable extends RuntimeException implements Runtim
         return new self(sprintf('Runtime setting "%s" uses "source: env": an environment value cannot change at runtime. Change the environment and restart, or configure "source: db" or "db_then_env".', $id));
     }
 
+    /**
+     * 1.1: the setting reads its value from a read-only provider.
+     */
+    public static function readOnlyProvider(string $id, string $provider): self
+    {
+        return new self(sprintf('Runtime setting "%s" is read from the read-only provider "%s": change the value where that provider reads it.', $id, $provider));
+    }
+
     public static function noWriter(): self
     {
         return new self('No runtime setting writer is configured.');

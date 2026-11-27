@@ -87,7 +87,7 @@ the kernel not reset, and with DDD hosts (the contract is framework-free).
 
 ## Success criteria
 
-- **SC-001**: **46/46** tracked `src/` files mapped in [`code-inventory.md`](code-inventory.md) (`git ls-files src | wc -l`).
+- **SC-001**: **50/50** tracked `src/` files mapped in [`code-inventory.md`](code-inventory.md) (`git ls-files src | wc -l`).
 - **SC-002**: `composer qa` green: PHP-CS-Fixer, PHPStan level max with the FrankenPHP worker rulesets, Rector dry run, Igor, PHPUnit with 100% line and method coverage.
 - **SC-003**: `src/Contract` and `src/InMemory` install and pass their tests with `composer install --no-dev` (no Symfony, no Doctrine) (FR-ARCH-001).
 - **SC-004**: A kept-alive kernel serving many requests never returns a value older than the namespace version token allows (FR-RES-003 / FR-RES-004; see [`docs/FRANKENPHP-WORKER-AUDIT.md`](../../docs/FRANKENPHP-WORKER-AUDIT.md)).

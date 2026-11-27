@@ -9,6 +9,7 @@
 - [Reacting to a change](#reacting-to-a-change)
 - [DDD host without Symfony](#ddd-host-without-symfony)
 - [Writing a source and writer](#writing-a-source-and-writer)
+- [Reading a setting from a provider (1.1)](#reading-a-setting-from-a-provider-11)
 - [Tests every adopter must have](#tests-every-adopter-must-have)
 
 ## Reading a setting
@@ -161,6 +162,14 @@ Follow the docblocks of `RuntimeValueSourceInterface` and `RuntimeSettingWriterI
 - Compare ids byte for byte (binary / NO PAD collation on MySQL, and `===` on fetched rows).
 - `InMemoryRuntimeSettingStore` is a complete reference implementation; `tests/Support/PdoRuntimeSettingStore.php`
   shows the transactional version over PDO.
+
+## Reading a setting from a provider (1.1)
+
+Nothing changes for the code that reads the setting: `$resolver->get($definition)` and `candidates()` work the same.
+The host registers a read-only provider and binds the setting to it; see
+[CONFIGURATION.md](CONFIGURATION.md#read-only-value-providers-11). Writes to that setting are refused
+(`RuntimeSettingNotWritable`), so admin UIs should hide or disable editing when
+`RuntimeSettingDefinition::isReadOnly()` is true.
 
 ## Tests every adopter must have
 

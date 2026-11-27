@@ -44,10 +44,11 @@ trait KernelTestTrait
 
     /**
      * @param array<string, mixed> $demoConfig
+     * @param array<string, mixed> $nowoConfig
      */
-    private function kernel(string $dsn, int $versionTtl = 0, bool $commandEnabled = true, bool $mutableClock = false, array $demoConfig = [], ?string $cachePool = null): TestKernel
+    private function kernel(string $dsn, int $versionTtl = 0, bool $commandEnabled = true, bool $mutableClock = false, array $demoConfig = [], ?string $cachePool = null, array $nowoConfig = []): TestKernel
     {
-        $kernel = new TestKernel($dsn, $versionTtl, $commandEnabled, $mutableClock, $demoConfig, $cachePool);
+        $kernel = new TestKernel($dsn, $versionTtl, $commandEnabled, $mutableClock, $demoConfig, $cachePool, $nowoConfig);
         $kernel->boot();
         $this->kernels[] = $kernel;
 

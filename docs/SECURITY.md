@@ -28,7 +28,10 @@ in-memory reference store) and opens no network connection.
 - Values given to the updater: command arguments, STDIN, admin form input.
 - Values read from the source, and entries read from the shared PSR-6 pool (another process, or anyone with write
   access to the pool, may have put them there).
-- Bridge configuration: `source`, `writer`, `cache_pool`, `version_ttl`, `fingerprint_key`, `command.enabled`.
+- Values returned by read-only value providers (1.1): host code or a configured query over data the host may not
+  fully control.
+- Bridge configuration: `source`, `writer`, `cache_pool`, `version_ttl`, `fingerprint_key`, `providers`,
+  `setting_providers`, `command.enabled`.
 - The console commands, registered only with `command.enabled: true`.
 - No HTTP routes, forms or templates.
 
@@ -44,6 +47,10 @@ in-memory reference store) and opens no network connection.
 | Value from one request served to another in a long-running worker | Medium |
 | Look-alike ids (case, whitespace, trailing newline, NBSP) addressing another setting (REQ-SEC-006) | Medium |
 | Writing a setting the host meant to keep in the environment | Medium |
+| Provider error message (SQL, bound values) leaking through exceptions or logs (1.1) | Medium |
+| Request-, connection- or deployment-scoped provider answer served to another caller through the shared cache (1.1) | High when `cache_ttl` > 0 without a matching `cache_scope` |
+| Provider query on a connection the request shares: uncommitted reads, aborted caller transaction (1.1) | Low |
+| Writing a provider-backed setting through the updater or an admin UI, shadowing the provider (1.1) | Medium |
 | SQL injection, XSS, CSRF, deserialization of untrusted classes | Not applicable here: no SQL, no HTML, no session; adapters own their storage |
 
 ## Mitigations
@@ -78,6 +85,12 @@ in-memory reference store) and opens no network connection.
   caller's transaction and must never reuse a version token.
 - **Worker mode**: the per-request memo is cleared at every boundary; all state is bounded
   ([FRANKENPHP-WORKER-AUDIT.md](FRANKENPHP-WORKER-AUDIT.md)).
+- **Providers (1.1)** are read-only: the updater refuses every write (dry runs included) with
+  `RuntimeSettingNotWritable`. A provider's exception is replaced by `RuntimeSettingSourceFailure` carrying only the
+  provider name and the exception class (no message, no chain). Provided values are bounded before parsing and go
+  through the type and the bundle's validator like any other. Secrets from providers stay in the per-request memo. An
+  unregistered provider, a provider with `source: env` or an unknown id in `setting_providers` fails the container
+  build.
 - **Commands** are off by default (`command.enabled: false`) and write an audit entry with the actor `cli:<os user>`.
 
 ## What the host and adapters must still do
@@ -88,6 +101,11 @@ in-memory reference store) and opens no network connection.
 - Adapters: encrypt secrets at rest, compare ids exactly (binary / NO PAD collation plus `===` on fetched rows), keep
   the version bump and the audit entry in the write transaction, and refuse nested transactions.
 - Admin UIs: protect the form with authentication, authorization and CSRF, and pass `user:<id>` as the actor.
+- Providers: keep `cache_ttl: 0` unless the answer is the same for every caller of the cache pool. It is not when
+  it depends on the request (tenant, user) or on the connection (per-tenant connection, row-level-security session
+  variable, `search_path`): those need `cache_ttl: 0`. Two deployments sharing one pool and `prefix_seed` with
+  different provider constants need distinct `cache_scope` values (or distinct prefix seeds). Run providers on a
+  dedicated connection with a least-privilege database user and parameterised SQL.
 - Keep the values listed in [CONFIGURATION.md](CONFIGURATION.md#what-cannot-move-to-the-database) in the environment.
 
 ## Secrets and cryptography

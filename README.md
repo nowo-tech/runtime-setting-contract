@@ -31,6 +31,9 @@ memo cleared at every boundary, bounded state. See [FrankenPHP worker audit](doc
 ## Features
 
 - **Per-setting source**: `env` (default, today's behaviour), `db`, or `db_then_env`, chosen by the host.
+- **Read-only value providers** (1.1): a setting can read its value from a named provider (your own
+  `RuntimeValueProviderInterface`, or RuntimeEnvBundle's YAML-configured DBAL query provider) with a per-provider
+  shared-cache TTL; writes to those settings are refused.
 - **Fail closed by default**: `on_error: fail_closed` aborts when the source is down or holds an invalid value;
   `fallback` warns and uses the env value.
 - **Validation everywhere**: the bundle's validator runs on env, database, cached and command values; values are
@@ -88,6 +91,10 @@ nowo_runtime_setting:
     writer: App\Settings\SettingsStore
     cache_pool: cache.app
     version_ttl: 5
+    providers:                     # 1.1, optional: read-only value providers
+        billing_db: { service: App\Settings\BillingProvider, cache_ttl: 60 }
+    setting_providers:             # 1.1, optional: read a registered setting from a provider
+        chat.retention_days: billing_db
     command:
         enabled: false
 

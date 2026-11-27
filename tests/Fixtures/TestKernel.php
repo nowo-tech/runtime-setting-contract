@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace Nowo\RuntimeSettingContract\Tests\Fixtures;
 
+use Nowo\RuntimeSettingContract\Bridge\Symfony\DependencyInjection\RuntimeSettingsConfiguration;
 use Nowo\RuntimeSettingContract\Bridge\Symfony\NowoRuntimeSettingBundle;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingRegistry;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingResolver;
 use Nowo\RuntimeSettingContract\Contract\RuntimeSettingUpdater;
+use Nowo\RuntimeSettingContract\Tests\Support\ArrayValueProvider;
 use Nowo\RuntimeSettingContract\Tests\Support\MutableClock;
 use Nowo\RuntimeSettingContract\Tests\Support\PdoRuntimeSettingStore;
 use Symfony\Bundle\FrameworkBundle\FrameworkBundle;
@@ -31,6 +33,7 @@ final class TestKernel extends Kernel
 
     /**
      * @param array<string, mixed> $demoConfig
+     * @param array<string, mixed> $nowoConfig merged into nowo_runtime_setting
      */
     public function __construct(
         private readonly string $dsn,
@@ -39,6 +42,7 @@ final class TestKernel extends Kernel
         private readonly bool $mutableClock = false,
         private readonly array $demoConfig = [],
         private readonly ?string $cachePool = null,
+        private readonly array $nowoConfig = [],
     ) {
         parent::__construct('test', false);
     }
@@ -57,7 +61,7 @@ final class TestKernel extends Kernel
 
     public function getCacheDir(): string
     {
-        return __DIR__ . '/var/cache/' . hash('xxh128', serialize([$this->dsn, $this->versionTtl, $this->commandEnabled, $this->mutableClock, $this->demoConfig, $this->cachePool]));
+        return __DIR__ . '/var/cache/' . hash('xxh128', serialize([$this->dsn, $this->versionTtl, $this->commandEnabled, $this->mutableClock, $this->demoConfig, $this->cachePool, $this->nowoConfig]));
     }
 
     public function getLogDir(): string
@@ -105,7 +109,7 @@ final class TestKernel extends Kernel
         if ($this->cachePool !== null) {
             $nowo['cache_pool'] = $this->cachePool;
         }
-        $container->extension('nowo_runtime_setting', $nowo);
+        $container->extension('nowo_runtime_setting', $nowo + $this->nowoConfig);
         $container->extension('demo', $this->demoConfig);
 
         $services = $container->services();
@@ -117,6 +121,10 @@ final class TestKernel extends Kernel
             $services->set('nowo_runtime_setting.clock', MutableClock::class)->public();
         }
         $services->set('test.array_pool', ArrayAdapter::class)->public();
+        // 1.1: a provider the host configures (`providers:`) and one an adapter bundle tags.
+        $services->set('test.provider', ArrayValueProvider::class)->public();
+        $services->set('test.tagged_provider', ArrayValueProvider::class)->public()
+            ->tag(RuntimeSettingsConfiguration::PROVIDER_TAG, ['name' => 'tagged', 'cache_ttl' => 60]);
     }
 
     protected function configureRoutes(RoutingConfigurator $routes): void
