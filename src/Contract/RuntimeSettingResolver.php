@@ -297,11 +297,11 @@ final class RuntimeSettingResolver
 
     /**
      * A provider has no version token: its cache entries are valid for one time bucket of `cacheTtl` seconds, the
-     * same bucket in every process. Changing the provider's name or TTL changes the token.
+     * same bucket in every process. Changing the provider's name, TTL or cache scope changes the token.
      */
     private function providerVersion(RuntimeValueProviderBinding $binding): string
     {
-        return 'provider:' . $binding->name . ':' . $binding->cacheTtl . ':' . intdiv($this->clock->now()->getTimestamp(), $binding->cacheTtl);
+        return 'provider:' . $binding->cacheTokenPrefix() . ':' . intdiv($this->clock->now()->getTimestamp(), $binding->cacheTtl);
     }
 
     private function version(string $namespace): string

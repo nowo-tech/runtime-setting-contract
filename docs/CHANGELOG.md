@@ -22,13 +22,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     trailing `providers` argument; `RuntimeSettingNotWritable::readOnlyProvider()`,
     `RuntimeSettingSourceFailure::providerFailed()`, `RuntimeSettingConfigurationError::unknownProvider()`.
   - Resolver: provider settings never read the default source; per-request memo always; shared cache only for
-    non-secret values of providers with `cache_ttl` > 0, keyed by a time-bucket token; provider exceptions replaced by
+    non-secret values of providers with `cache_ttl` > 0, keyed by a time-bucket token that also carries a hash of
+    the binding's optional `cacheScope` (audit ZDA-L2: per-connection / per-deployment answers never share an entry); provider exceptions replaced by
     a `RuntimeSettingSourceFailure` without message or chain; values over 65536 bytes refused before parsing; an
     unregistered provider is a configuration error even under `on_error: fallback`.
   - Updater, commands and adapters: `set` / `unset` / `rotate` / `prepare` (dry runs included) refuse provider
     settings with `RuntimeSettingNotWritable`.
-  - Symfony bridge: `providers.<name>: { service, cache_ttl }`, `setting_providers: { <id>: <name> }`, the
-    `nowo_runtime_setting.provider` tag (`RuntimeSettingsConfiguration::PROVIDER_TAG`), an optional `provider` key in
+  - Symfony bridge: `providers.<name>: { service, cache_ttl, cache_scope }`, `setting_providers: { <id>: <name> }`, the
+    `nowo_runtime_setting.provider` tag (`RuntimeSettingsConfiguration::PROVIDER_TAG`, attributes `name`, `cache_ttl`,
+    `cache_scope`), an optional `provider` key in
     `RuntimeSettingsConfiguration::appendTo()` nodes (absent from the processed node unless set) and
     `registerDefinition()`; `RuntimeValueProvidersPass` checks every binding when the container is built.
     `nowo:runtime-setting:list` shows `db via <provider>`.

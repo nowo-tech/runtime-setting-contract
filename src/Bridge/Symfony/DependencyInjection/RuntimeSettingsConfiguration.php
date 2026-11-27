@@ -55,7 +55,8 @@ final class RuntimeSettingsConfiguration
 
     /**
      * 1.1: tag of a {@see RuntimeValueProviderInterface} service; attributes
-     * `name` (required, lowercase snake case) and `cache_ttl` (seconds, 0..3600, default 0).
+     * `name` (required, lowercase snake case), `cache_ttl` (seconds, 0..3600, default 0) and `cache_scope` (string hashed
+     * into the cache token: what the answer depends on besides the setting id; default '').
      */
     public const PROVIDER_TAG = 'nowo_runtime_setting.provider';
 

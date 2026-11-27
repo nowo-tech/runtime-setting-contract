@@ -13,6 +13,7 @@ use PHPUnit\Framework\Attributes\Test;
 use PHPUnit\Framework\TestCase;
 
 use function str_repeat;
+use function strlen;
 
 final class RuntimeValueProviderRegistryTest extends TestCase
 {
@@ -82,6 +83,29 @@ final class RuntimeValueProviderRegistryTest extends TestCase
         $this->expectException(RuntimeSettingConfigurationError::class);
 
         RuntimeValueProviderBinding::assertValid('tenant', 3601);
+    }
+
+    #[Test]
+    public function theCacheScopeIsHashedIntoTheTokenPrefix(): void
+    {
+        $provider = new ArrayValueProvider();
+
+        self::assertSame('tenant:60', (new RuntimeValueProviderBinding('tenant', $provider, 60))->cacheTokenPrefix());
+        $scoped = new RuntimeValueProviderBinding('tenant', $provider, 60, 'conn:tenants|REDACTED-TEST-TENANT');
+        self::assertSame('conn:tenants|REDACTED-TEST-TENANT', $scoped->cacheScope);
+        self::assertMatchesRegularExpression('/^tenant:60:[0-9a-f]{16}$/D', $scoped->cacheTokenPrefix());
+        self::assertStringNotContainsString('REDACTED', $scoped->cacheTokenPrefix());
+        self::assertNotSame($scoped->cacheTokenPrefix(), (new RuntimeValueProviderBinding('tenant', $provider, 60, 'conn:other'))->cacheTokenPrefix());
+        self::assertSame(4096, strlen((new RuntimeValueProviderBinding('tenant', $provider, 60, str_repeat('s', 4096)))->cacheScope));
+    }
+
+    #[Test]
+    public function refusesATooLongScope(): void
+    {
+        $this->expectException(RuntimeSettingConfigurationError::class);
+        $this->expectExceptionMessage('longer than 4096 bytes');
+
+        new RuntimeValueProviderBinding('tenant', new ArrayValueProvider(), 60, str_repeat('s', 4097));
     }
 
     #[Test]

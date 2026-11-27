@@ -309,6 +309,32 @@ final class ProviderResolutionTest extends TestCase
     }
 
     #[Test]
+    public function twoScopesNeverShareACachedValue(): void
+    {
+        $pool       = new ArrayAdapter();
+        $definition = $this->int(RuntimeSettingSource::Db);
+        $tenantA    = new ArrayValueProvider(['chat.days' => '10']);
+        $tenantB    = new ArrayValueProvider(['chat.days' => '20']);
+        $resolver   = fn (ArrayValueProvider $provider, string $scope): RuntimeSettingResolver => new RuntimeSettingResolver(
+            $this->source,
+            new Psr6RuntimeValueCache($pool),
+            $this->clock,
+            0,
+            $this->logger,
+            new RuntimeValueProviderRegistry([new RuntimeValueProviderBinding('tenant', $provider, 60, $scope)]),
+        );
+
+        // Two deployments sharing one pool, same provider name and TTL, different scope.
+        self::assertSame(10, $resolver($tenantA, 'deployment-a')->get($definition));
+        self::assertSame(20, $resolver($tenantB, 'deployment-b')->get($definition));
+        self::assertSame(20, $resolver($tenantB, 'deployment-b')->get($definition));
+        self::assertSame(1, $tenantB->reads, 'same scope: from the cache');
+        // One item per id: B's entry replaced A's, so A reads its provider again, never B's value.
+        self::assertSame(10, $resolver($tenantA, 'deployment-a')->get($definition));
+        self::assertSame(2, $tenantA->reads);
+    }
+
+    #[Test]
     public function aProviderWithoutTtlNeverUsesTheCache(): void
     {
         $pool                                = new ArrayAdapter();

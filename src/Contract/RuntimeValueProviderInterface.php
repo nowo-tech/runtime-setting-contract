@@ -15,7 +15,12 @@ namespace Nowo\RuntimeSettingContract\Contract;
  *
  * Contract for implementations:
  * - **Read only.** Never write, lock or change session state. Prefer a database user that can only SELECT.
- * - **Committed data**, read on every call (no ORM identity map kept across requests).
+ * - **Fresh data**, read on every call (no ORM identity map kept across requests). Prefer a dedicated connection: on a
+ *   connection the caller shares, a read sees the caller's uncommitted writes, and a failed statement may abort the
+ *   caller's open transaction (PostgreSQL); guard such reads with a savepoint.
+ * - **Cache scope.** When the answer depends on anything else than the setting id (connection, tenant, deployment
+ *   constants), register the provider with `cache_ttl: 0` or a {@see RuntimeValueProviderBinding::$cacheScope} that
+ *   captures it.
  * - **Bounded.** At most one row; strings at most {@see RuntimeSettingType::MAX_LENGTH} bytes (the resolver refuses
  *   anything longer before parsing, and the setting's own `maxLength` applies too).
  * - **Plain strings.** {@see read()} returns the value as a string (and, during a rotation window, the previous one

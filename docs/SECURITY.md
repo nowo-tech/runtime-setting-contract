@@ -48,7 +48,8 @@ in-memory reference store) and opens no network connection.
 | Look-alike ids (case, whitespace, trailing newline, NBSP) addressing another setting (REQ-SEC-006) | Medium |
 | Writing a setting the host meant to keep in the environment | Medium |
 | Provider error message (SQL, bound values) leaking through exceptions or logs (1.1) | Medium |
-| Request-scoped provider answer (tenant, user) served to another request through the shared cache (1.1) | High when `cache_ttl` > 0 |
+| Request-, connection- or deployment-scoped provider answer served to another caller through the shared cache (1.1) | High when `cache_ttl` > 0 without a matching `cache_scope` |
+| Provider query on a connection the request shares: uncommitted reads, aborted caller transaction (1.1) | Low |
 | Writing a provider-backed setting through the updater or an admin UI, shadowing the provider (1.1) | Medium |
 | SQL injection, XSS, CSRF, deserialization of untrusted classes | Not applicable here: no SQL, no HTML, no session; adapters own their storage |
 
@@ -100,8 +101,11 @@ in-memory reference store) and opens no network connection.
 - Adapters: encrypt secrets at rest, compare ids exactly (binary / NO PAD collation plus `===` on fetched rows), keep
   the version bump and the audit entry in the write transaction, and refuse nested transactions.
 - Admin UIs: protect the form with authentication, authorization and CSRF, and pass `user:<id>` as the actor.
-- Providers: keep `cache_ttl: 0` for any provider whose answer depends on the request (tenant, user), because the
-  shared cache is keyed by setting id only; give them a database user that can only `SELECT`; use parameterised SQL.
+- Providers: keep `cache_ttl: 0` unless the answer is the same for every caller of the cache pool. It is not when
+  it depends on the request (tenant, user) or on the connection (per-tenant connection, row-level-security session
+  variable, `search_path`): those need `cache_ttl: 0`. Two deployments sharing one pool and `prefix_seed` with
+  different provider constants need distinct `cache_scope` values (or distinct prefix seeds). Run providers on a
+  dedicated connection with a least-privilege database user and parameterised SQL.
 - Keep the values listed in [CONFIGURATION.md](CONFIGURATION.md#what-cannot-move-to-the-database) in the environment.
 
 ## Secrets and cryptography

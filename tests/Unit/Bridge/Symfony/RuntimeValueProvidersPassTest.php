@@ -38,8 +38,8 @@ final class RuntimeValueProvidersPassTest extends TestCase
     #[Test]
     public function collectsConfiguredAndTaggedProvidersSortedByName(): void
     {
-        $container = $this->container(configured: ['zeta' => ['service' => 'host.provider', 'cache_ttl' => 30]]);
-        $container->register('adapter.provider', ArrayValueProvider::class)->addTag(RuntimeSettingsConfiguration::PROVIDER_TAG, ['name' => 'alpha', 'cache_ttl' => 60]);
+        $container = $this->container(configured: ['zeta' => ['service' => 'host.provider', 'cache_ttl' => 30, 'cache_scope' => 'deployment-a']]);
+        $container->register('adapter.provider', ArrayValueProvider::class)->addTag(RuntimeSettingsConfiguration::PROVIDER_TAG, ['name' => 'alpha', 'cache_ttl' => 60, 'cache_scope' => 'conn:tenants']);
         $container->register('adapter.provider2', ArrayValueProvider::class)->addTag(RuntimeSettingsConfiguration::PROVIDER_TAG, ['name' => 'beta']);
 
         (new RuntimeValueProvidersPass())->process($container);
@@ -52,6 +52,7 @@ final class RuntimeValueProvidersPassTest extends TestCase
         self::assertSame(['beta', 'adapter.provider2', 0], [$bindings[1]->getArgument(0), $this->ref($bindings[1]->getArgument(1)), $bindings[1]->getArgument(2)]);
         self::assertSame(['zeta', 'host.provider', 30], [$bindings[2]->getArgument(0), $this->ref($bindings[2]->getArgument(1)), $bindings[2]->getArgument(2)]);
         self::assertInstanceOf(Reference::class, $bindings[2]->getArgument(1));
+        self::assertSame(['conn:tenants', '', 'deployment-a'], [$bindings[0]->getArgument(3), $bindings[1]->getArgument(3), $bindings[2]->getArgument(3)]);
 
         $container->register('host.provider', ArrayValueProvider::class);
         $container->getDefinition(RuntimeValueProvidersPass::REGISTRY_ID)->setPublic(true);
@@ -100,6 +101,30 @@ final class RuntimeValueProvidersPassTest extends TestCase
         $this->expectException(RuntimeSettingConfigurationError::class);
 
         (new RuntimeValueProvidersPass())->process($container);
+    }
+
+    #[Test]
+    public function refusesATagWithANonStringScope(): void
+    {
+        $container = $this->container();
+        $container->register('adapter.provider', ArrayValueProvider::class)->addTag(RuntimeSettingsConfiguration::PROVIDER_TAG, ['name' => 'tenant', 'cache_scope' => 12]);
+
+        $this->expectException(RuntimeSettingConfigurationError::class);
+        $this->expectExceptionMessage('non-string "cache_scope"');
+
+        (new RuntimeValueProvidersPass())->process($container);
+    }
+
+    #[Test]
+    public function aConfiguredProviderWithANonStringScopeHasNone(): void
+    {
+        $container = $this->container(configured: ['tenant' => ['service' => 'a', 'cache_ttl' => 0, 'cache_scope' => 12]]);
+
+        (new RuntimeValueProvidersPass())->process($container);
+
+        /** @var list<Definition> $bindings */
+        $bindings = $container->getDefinition(RuntimeValueProvidersPass::REGISTRY_ID)->getArgument(0);
+        self::assertSame('', $bindings[0]->getArgument(3));
     }
 
     #[Test]
@@ -276,7 +301,7 @@ final class RuntimeValueProvidersPassTest extends TestCase
     }
 
     /**
-     * @param array<string, array{service: string, cache_ttl: int}> $configured
+     * @param array<string, array{service: string, cache_ttl: int, cache_scope?: mixed}> $configured
      * @param array<string, string> $map
      */
     private function container(array $configured = [], array $map = []): ContainerBuilder

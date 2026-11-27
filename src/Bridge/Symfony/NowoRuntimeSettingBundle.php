@@ -115,6 +115,10 @@ final class NowoRuntimeSettingBundle extends AbstractBundle
                                 ->min(0)
                                 ->max(RuntimeValueProviderBinding::MAX_CACHE_TTL)
                             ->end()
+                            ->scalarNode('cache_scope')
+                                ->info('What the answer depends on besides the setting id (tenant connection, deployment constants), hashed into the cache token so entries are never shared across scopes. Empty: none.')
+                                ->defaultValue('')
+                            ->end()
                         ->end()
                     ->end()
                 ->end()
@@ -148,7 +152,7 @@ final class NowoRuntimeSettingBundle extends AbstractBundle
     }
 
     /**
-     * @param array{source: ?string, writer: ?string, cache_pool: ?string, cache_lifetime: int, version_ttl: int, fingerprint_key: ?string, providers: array<string, array{service: string, cache_ttl: int}>, setting_providers: array<string, string>, command: array{enabled: bool}} $config
+     * @param array{source: ?string, writer: ?string, cache_pool: ?string, cache_lifetime: int, version_ttl: int, fingerprint_key: ?string, providers: array<string, array{service: string, cache_ttl: int, cache_scope: string}>, setting_providers: array<string, string>, command: array{enabled: bool}} $config
      */
     public function loadExtension(array $config, ContainerConfigurator $container, ContainerBuilder $builder): void
     {

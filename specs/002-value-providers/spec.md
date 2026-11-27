@@ -64,7 +64,7 @@ follow `on_error` without leaking SQL or values.
 | FR-PROV-003 | `RuntimeSettingDefinition` gains an optional trailing `provider` (validated name; refused with `source: env`); validator still mandatory for `db` / `db_then_env`. The resolver reads the provider instead of the source (no namespace version read); `db` / `db_then_env` fallbacks, `required`, rotation candidates and validation are unchanged. |
 | FR-PROV-004 | A provider exception becomes `RuntimeSettingSourceFailure::providerFailed()` (name + exception class, no message, no chain), then `on_error` applies. A current or previous value over 65,536 bytes is a source failure before parsing. An unregistered provider is a `RuntimeSettingConfigurationError`, never hidden by `fallback`. |
 | FR-PROV-005 | `RuntimeSettingUpdater::writableDefinition()` (hence `set`, `unset`, `rotate`, `prepare`, dry runs, commands and adapter UIs that use the updater) refuses provider settings with `RuntimeSettingNotWritable::readOnlyProvider()`. `isWritable()` keeps its 1.0 meaning (source kind) so 1.0 adapters keep routing those writes to the updater; `isReadOnly()` tells whether a write can succeed. |
-| FR-PROV-006 | Per-request memo always. Shared cache only for non-secret values of providers with `cacheTtl` > 0, under the token `provider:<name>:<ttl>:<floor(now / ttl)>` (same bucket in every process). Secrets never reach the shared cache. |
+| FR-PROV-006 | Per-request memo always. Shared cache only for non-secret values of providers with `cacheTtl` > 0, under the token `provider:<name>:<ttl>[:<sha256(cacheScope)[0..16]>]:<floor(now / ttl)>` (same bucket in every process; audit ZDA-L2: an optional binding scope of at most 4096 bytes, hashed, separates per-connection / per-deployment answers). Secrets never reach the shared cache. |
 | FR-PROV-007 | Symfony bridge: `providers.<name>: { service, cache_ttl }`, tag `nowo_runtime_setting.provider` (`name`, `cache_ttl`), `setting_providers: { <id>: <name> }`, optional `provider` key in `RuntimeSettingsConfiguration::appendTo()` (absent from the processed node unless set) and `registerDefinition()`. |
 | FR-PROV-008 | `RuntimeValueProvidersPass` builds the registry and fails the build on: invalid tag name or TTL, duplicate names, provider on `source: env`, bundle option and map naming different providers, unregistered provider, mapped id not registered. |
 | FR-PROV-009 | No BC break: new constructor arguments are optional and trailing; 1.0 processed configuration is unchanged; `nowo:runtime-setting:list` shows `<source> via <provider>` for provider settings only. |
@@ -84,8 +84,9 @@ follow `on_error` without leaking SQL or values.
 
 ## Assumptions
 
-- A provider whose answer depends on the request (tenant, user) is registered with `cache_ttl: 0`: the shared cache is
-  keyed by setting id only (documented in CONFIGURATION and SECURITY).
+- A provider whose answer depends on the request or the connection (tenant, user, RLS session variable, `search_path`)
+  is registered with `cache_ttl: 0`; per-deployment constants sharing one pool use distinct `cache_scope` values
+  (documented in CONFIGURATION and SECURITY, audit ZDA-L2).
 - Providers run with a database user that can only `SELECT` (recommended; the contract cannot enforce it).
 
 ## Scope

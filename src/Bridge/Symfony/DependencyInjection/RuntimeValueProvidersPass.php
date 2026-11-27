@@ -55,10 +55,10 @@ final class RuntimeValueProvidersPass implements CompilerPassInterface
         $providers = $this->providers($container);
 
         $bindings = [];
-        foreach ($providers as $name => [$serviceId, $ttl]) {
+        foreach ($providers as $name => [$serviceId, $ttl, $scope]) {
             // Validates name and TTL now, with the contract's own rules (the binding is built again at runtime).
             RuntimeValueProviderBinding::assertValid($name, $ttl);
-            $bindings[] = new Definition(RuntimeValueProviderBinding::class, [$name, new Reference($serviceId), $ttl]);
+            $bindings[] = new Definition(RuntimeValueProviderBinding::class, [$name, new Reference($serviceId), $ttl, $scope]);
         }
         $container->getDefinition(self::REGISTRY_ID)->setArgument(0, $bindings);
 
@@ -66,7 +66,7 @@ final class RuntimeValueProvidersPass implements CompilerPassInterface
     }
 
     /**
-     * @return array<string, array{0: string, 1: int}> service id and cache TTL by provider name
+     * @return array<string, array{0: string, 1: int, 2: string}> service id, cache TTL and cache scope by provider name
      */
     private function providers(ContainerBuilder $container): array
     {
@@ -75,21 +75,23 @@ final class RuntimeValueProvidersPass implements CompilerPassInterface
         $configured = $container->hasParameter(self::CONFIGURED_PROVIDERS_PARAMETER) ? $container->getParameter(self::CONFIGURED_PROVIDERS_PARAMETER) : [];
         foreach (is_array($configured) ? $configured : [] as $name => $provider) {
             if (is_array($provider) && is_string($provider['service'] ?? null) && is_int($provider['cache_ttl'] ?? null)) {
-                $providers[(string) $name] = [$provider['service'], $provider['cache_ttl']];
+                $scope                     = $provider['cache_scope'] ?? '';
+                $providers[(string) $name] = [$provider['service'], $provider['cache_ttl'], is_string($scope) ? $scope : ''];
             }
         }
 
         foreach ($container->findTaggedServiceIds(RuntimeSettingsConfiguration::PROVIDER_TAG) as $serviceId => $tags) {
             foreach ($tags as $tag) {
-                $name = is_array($tag) ? ($tag['name'] ?? null) : null;
-                $ttl  = is_array($tag) ? ($tag['cache_ttl'] ?? 0) : 0;
-                if (!is_string($name) || !RuntimeValueProviderBinding::isValidName($name) || !is_int($ttl)) {
-                    throw RuntimeSettingConfigurationError::because(sprintf('Service "%s" is tagged "%s" without a valid "name" (lowercase snake case) or with a non-integer "cache_ttl".', $serviceId, RuntimeSettingsConfiguration::PROVIDER_TAG));
+                $name  = is_array($tag) ? ($tag['name'] ?? null) : null;
+                $ttl   = is_array($tag) ? ($tag['cache_ttl'] ?? 0) : 0;
+                $scope = is_array($tag) ? ($tag['cache_scope'] ?? '') : '';
+                if (!is_string($name) || !RuntimeValueProviderBinding::isValidName($name) || !is_int($ttl) || !is_string($scope)) {
+                    throw RuntimeSettingConfigurationError::because(sprintf('Service "%s" is tagged "%s" without a valid "name" (lowercase snake case), or with a non-integer "cache_ttl" or a non-string "cache_scope".', $serviceId, RuntimeSettingsConfiguration::PROVIDER_TAG));
                 }
                 if (isset($providers[$name])) {
                     throw RuntimeSettingConfigurationError::because(sprintf('Runtime value provider "%s" is registered twice.', $name));
                 }
-                $providers[$name] = [$serviceId, $ttl];
+                $providers[$name] = [$serviceId, $ttl, $scope];
             }
         }
 
@@ -99,7 +101,7 @@ final class RuntimeValueProvidersPass implements CompilerPassInterface
     }
 
     /**
-     * @param array<string, array{0: string, 1: int}> $providers
+     * @param array<string, array{0: string, 1: int, 2: string}> $providers
      */
     private function bindSettings(ContainerBuilder $container, array $providers): void
     {

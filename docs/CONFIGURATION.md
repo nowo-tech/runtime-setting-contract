@@ -130,14 +130,21 @@ final readonly class TenantSettingsProvider implements RuntimeValueProviderInter
 }
 ```
 
-Rules: parameterised SQL only; at most one row; committed data read on every call; no per-request state in the
+Rules: parameterised SQL only; at most one row; fresh data read on every call, preferably on a **dedicated
+connection** (on a connection the request shares, the read sees the request's uncommitted writes, and a failed
+statement can abort the request's open transaction on PostgreSQL: guard such reads with a savepoint); no per-request state in the
 service (it serves every request of a worker; read request-scoped data such as the tenant from a service that is reset
 at the boundary); never put a value or SQL in an exception message. Return `new StoredRuntimeValue($current, $previous,
 $expiresAt)` to give verifiers the previous value during a rotation window. For a plain query configured in YAML, use
 nowo-tech/runtime-env-bundle's DBAL query provider (1.10).
 
-> **Caching and request-scoped providers.** The shared cache is keyed by setting id only. A provider whose answer
-> depends on the request (tenant, user) **must** use `cache_ttl: 0`, or one tenant's value is served to another.
+> **What the shared cache may share.** Entries are keyed by setting id, provider name, TTL and the optional
+> `cache_scope` (hashed). Keep `cache_ttl: 0` unless the answer is **the same for every caller of that cache pool**.
+> The answer differs when it depends on the request (tenant, user), on the **connection** (a per-tenant connection, a
+> row-level-security session variable such as `SET app.tenant`, `search_path`) or on **per-deployment constants**
+> (two deployments of one image sharing a Redis pool with the same `framework.cache.prefix_seed` and different
+> provider constants). For the last case set `cache_scope` to what differs (or a distinct `prefix_seed` per
+> deployment); request- and connection-scoped answers need `cache_ttl: 0`.
 
 ### Registering providers
 
@@ -145,18 +152,22 @@ nowo-tech/runtime-env-bundle's DBAL query provider (1.10).
 nowo_runtime_setting:
     cache_pool: cache.app
     providers:
-        tenant_settings: { service: App\Settings\TenantSettingsProvider, cache_ttl: 0 }
-        billing_db:      { service: App\Settings\BillingProvider, cache_ttl: 60 }
+        tenant_settings: { service: App\Settings\TenantSettingsProvider, cache_ttl: 0 }   # request-scoped
+        billing_db:      { service: App\Settings\BillingProvider, cache_ttl: 60, cache_scope: '%env(BILLING_DB_NAME)%' }
 ```
 
-Names are lowercase snake case (`[a-z][a-z0-9_]{0,63}`). Adapter bundles tag their services instead:
-`nowo_runtime_setting.provider` with `name` and an optional `cache_ttl`. Two providers with one name fail the build.
+Names are lowercase snake case (`[a-z][a-z0-9_]{0,63}`). `cache_scope` (optional, at most 4096 bytes) is hashed into
+the cache token: entries of different scopes are never served to each other. Adapter bundles tag their services
+instead: `nowo_runtime_setting.provider` with `name` and optional `cache_ttl` / `cache_scope` (nowo-tech/runtime-env-bundle
+sets the scope to the connection name and a hash of the query and its bound constants). Two providers with one name
+fail the build.
 
 DDD / framework-free hosts pass the registry to the resolver:
 
 ```php
 $resolver = new RuntimeSettingResolver($source, $cache, $clock, 5, $logger, new RuntimeValueProviderRegistry([
     new RuntimeValueProviderBinding('tenant_settings', $provider, cacheTtl: 0),
+    // new RuntimeValueProviderBinding('billing_db', $billing, cacheTtl: 60, cacheScope: 'billing@eu-1'),
 ]));
 ```
 
@@ -179,7 +190,7 @@ and the map name different providers, or when a provider is not registered.
 | Layer | Provider settings |
 |---|---|
 | Per-request memo | Always: one read per setting and request, cleared at every boundary. |
-| Shared cache (`cache_pool`) | Non-secret values only, and only when the provider's `cache_ttl` > 0. Entries live for one time bucket of `cache_ttl` seconds (the same bucket in every worker): a change at the provider reaches every worker within `cache_ttl`. Changing the name or the TTL changes the token. |
+| Shared cache (`cache_pool`) | Non-secret values only, and only when the provider's `cache_ttl` > 0. Entries live for one time bucket of `cache_ttl` seconds (the same bucket in every worker): a change at the provider reaches every worker within `cache_ttl`. Changing the name, the TTL or the `cache_scope` changes the token. |
 | Secrets | Never in the shared cache, whatever `cache_ttl` says: read once per request. |
 
 Providers have no namespace version token: `version_ttl` does not apply to them.
