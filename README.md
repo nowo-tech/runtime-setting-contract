@@ -79,7 +79,7 @@ $days = $resolver->get($retention);         // stored value, else env, else defa
 
 ## Requirements
 
-- PHP >= 8.2, < 8.6
+- PHP >= 8.2, < 8.7
 - `psr/clock`, `psr/log`, `psr/event-dispatcher` (interfaces)
 - Optional: Symfony 7.4 or 8.x for the bridge, `psr/cache` for the shared cache
 
