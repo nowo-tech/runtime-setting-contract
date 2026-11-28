@@ -9,7 +9,7 @@
 
 ## Requirements
 
-- PHP >= 8.2, < 8.6.
+- PHP >= 8.2, < 8.7.
 - Runtime dependencies: `psr/clock`, `psr/log`, `psr/event-dispatcher` (interfaces only).
 - For the Symfony bridge: Symfony 7.4 or 8.x (`symfony/http-kernel`, `symfony/dependency-injection`, `symfony/config`,
   and `symfony/console` for the commands). Older Symfony versions are refused through `conflict`.
